@@ -3,9 +3,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.TimeZone;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -173,7 +171,9 @@ final public class PartialHTTP1Server {
             System.out.printf("INFO: Built message%n%n\"%s\"%n%n", message.toString());
             return message.toString();
         }
-
+        /*
+            Builds the HTTP header for a given command, resource, and second line argument
+         */
         private String buildHeader(String command, String resource, String line2) {
             StringBuilder header = new StringBuilder();
             File file = new File(resource);
@@ -181,50 +181,38 @@ final public class PartialHTTP1Server {
                 return String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.NOT_FOUND);
             }
 
-            String fileName = file.getName();
-            String extension = fileName.substring(fileName.lastIndexOf('.') + 1);
-            String contentType = getMimeType(extension);
-            int contentLength;
-            Date lastModified = new Date(file.lastModified());
             SimpleDateFormat sdf = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss z");
             sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
-            String formattedModified = sdf.format(lastModified);
-            String contentEncoding = "identity";
-            String allow = "GET, POST, HEAD";
-            Calendar expires = Calendar.getInstance();
-            expires.add(Calendar.HOUR, 24);
-            String formattedExpires = sdf.format(expires.getTime());
 
-            try {
-                byte[] contents = Files.readAllBytes(file.toPath());
-                contentLength = contents.length;
-            } catch (IOException e) {
-                return String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.INTERNAL_SERVER_ERROR);
-            }
+            Set<String> supportedQueries = new HashSet<>() {
+                {
+                    add("If-Modified-Since");
+                }
+            };
 
-            header.append(String.format("%s %s%n", HTTP_SUPPORTED_VERSION, Response.OK));
-            header.append(String.format("Content-Type: %s%n", contentType));
-            header.append(String.format("Content-Length: %d%n", contentLength));
-            header.append(String.format("Last-Modified: %s%n", formattedModified));
-            header.append(String.format("Content-Encoding: %s%n", contentEncoding));
-            header.append(String.format("Allow: %s%n", allow));
-            header.append(String.format("Expires: %s%n", formattedExpires));
 
             return header.toString();
         }
 
+        /*
+            Write a message to the output stream. Does not modify the message at all.
+         */
         private void writeMessage(String message) {
             System.out.printf("INFO: Wrote line to output: %n%n\"%s\"%n%n", message);
             OUT.println(message);
         }
 
+        /*
+            Read a message from the input stream. Pieces it together line by line and trims any trailing
+            white space that may mess with String.split()
+         */
         private String readMessage() {
             StringBuilder sb = new StringBuilder();
             String line;
             try {
                 while (!(line = IN.readLine()).isEmpty()) {
                     System.out.printf("INFO: Read line from input: %n%n\"%s\"%n%n", line);
-                    sb.append(line + System.lineSeparator());
+                    sb.append(line).append(System.lineSeparator());
                 }
             } catch (IOException e) {
                 System.out.printf("NOTICE: Failed to read line from input stream. %s%n", e.getMessage());
@@ -232,6 +220,9 @@ final public class PartialHTTP1Server {
             return sb.toString().trim();
         }
 
+        /*
+            Tries to close any open connections.
+         */
         private void close() {
             try {
                 // "Once your response has been sent, you should flush() your output streams, wait a quarter second, 
