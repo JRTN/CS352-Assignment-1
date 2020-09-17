@@ -170,8 +170,8 @@ final public class PartialHTTP1Server {
         }
 
         private String readMessage() {
-            StringBuffer sb = new StringBuffer("");
-            String line = null;
+            StringBuilder sb = new StringBuilder();
+            String line;
             try {
                 while (!(line = IN.readLine()).isEmpty()) {
                     System.out.printf("INFO: Read line \"%s\" from input.%n", line);
@@ -246,7 +246,7 @@ final public class PartialHTTP1Server {
                 4. Unit of time for #3 - Milliseconds or seconds, don't matter
                 5. The Work Queue - We just need any blocking queue so we'll use a linked queue
         */
-        ExecutorService threadPoolService = new ThreadPoolExecutor(5, 50, 5000, 
+        ExecutorService threadPoolService = new ThreadPoolExecutor(5, 50, 5000,
                                                                     TimeUnit.MILLISECONDS,
                                                                         new LinkedBlockingQueue<Runnable>());
 
