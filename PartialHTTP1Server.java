@@ -121,6 +121,11 @@ final public class PartialHTTP1Server {
             this.close();
         }
 
+        /*
+            Gets the proper MIME string according to file extension. This is in the form of
+                <type>/<subtype>
+            Subtype is usually the extension, but sometimes differs.
+         */
         private String getMimeType(String extension) {
             extension = extension.toLowerCase();
             String type = "";
@@ -155,7 +160,6 @@ final public class PartialHTTP1Server {
                 case "UNLINK":
                     message.append(String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.NOT_IMPLEMENTED));
                     break;
-                //TODO: Build message based off command and resource and second line
                 case "GET":
                 case "POST":
                     String header = buildHeader(command, resource, line2);
@@ -176,20 +180,19 @@ final public class PartialHTTP1Server {
          */
         private String buildHeader(String command, String resource, String line2) {
             StringBuilder header = new StringBuilder();
-            File file = new File(resource);
-            if(!file.exists()) {
-                return String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.NOT_FOUND);
-            }
 
+            //Date formatter in GMT
             SimpleDateFormat sdf = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss z");
             sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
 
+            //Supported HTTP queries for filtering results
             Set<String> supportedQueries = new HashSet<>() {
                 {
                     add("If-Modified-Since");
                 }
             };
 
+            //TODO: Build message based off command and resource and second line
 
             return header.toString();
         }
@@ -197,6 +200,7 @@ final public class PartialHTTP1Server {
         /*
             Write a message to the output stream. Does not modify the message at all.
          */
+        //TODO: Fix this so messages are read by tester properly
         private void writeMessage(String message) {
             System.out.printf("INFO: Wrote line to output: %n%n\"%s\"%n%n", message);
             OUT.println(message);
@@ -316,7 +320,7 @@ final public class PartialHTTP1Server {
                 try {
                     //Write error 503 to the socket's output stream
                     PrintWriter OUT = new PrintWriter(SOCKET.getOutputStream(), true);
-                    OUT.println(Response.SERVICE_UNAVAILABLE);
+                    OUT.printf("HTTP/1.0 %s", Response.SERVICE_UNAVAILABLE);
                     //Clean up connections
                     OUT.close();
                     SOCKET.close();
