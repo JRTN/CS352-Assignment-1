@@ -1,9 +1,11 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -51,7 +53,8 @@ final public class PartialHTTP1Server {
 
     final static class ConnectionHandler implements Runnable {
 
-        private final String SUPPORTED_VERSION = "HTML/1.0";
+        private final String HTML_SUPPORTED_VERSION = "HTML/1.0";
+        private final String HTTP_SUPPORTED_VERSION = "HTTP/1.0";
 
         private Socket SOCKET;
         private BufferedReader IN;
@@ -79,6 +82,7 @@ final public class PartialHTTP1Server {
 
         @Override
         public void run() {
+            //TODO: Add 5 second timeout
             String message = this.readMessage();
             
             String[] lines = message.split(System.lineSeparator());
@@ -88,7 +92,7 @@ final public class PartialHTTP1Server {
                 If there aren't 3 tokens in the first line, it's a bad request
             */
             if(firstTokens.length != 3) {
-                this.writeMessage(String.format("%s %s", SUPPORTED_VERSION, Response.BAD_REQUEST));
+                this.writeMessage(String.format("%s %s", HTML_SUPPORTED_VERSION, Response.BAD_REQUEST));
                 this.close();
                 return;
             }
@@ -100,8 +104,8 @@ final public class PartialHTTP1Server {
             /*
                 If the HTML version is not 1.0, then it's not supported
             */
-            if(!version.equals(SUPPORTED_VERSION)) {
-                this.writeMessage(String.format("%s %s", SUPPORTED_VERSION, Response.HTTP_VERSION_NOT_SUPPORTED));
+            if(!version.equals(HTTP_SUPPORTED_VERSION)) {
+                this.writeMessage(String.format("%s %s", HTML_SUPPORTED_VERSION, Response.HTTP_VERSION_NOT_SUPPORTED));
                 this.close();
                 return;
             }
@@ -113,7 +117,7 @@ final public class PartialHTTP1Server {
                 Otherwise, the message builds the message based off of the response.
             */
             String line2 = null;
-            if(lines.length > 1 && !lines[1].isEmpty()) {
+            if(lines.length > 1) {
                 line2 = lines[1];
             }
             this.writeMessage(this.buildMessage(command, resource, line2));
@@ -125,8 +129,11 @@ final public class PartialHTTP1Server {
             String type = "";
             switch(extension) {
                 case "html":
-                case "plain":
                     type = "text";
+                    break;
+                case "txt":
+                    type = "text";
+                    extension = "plain";
                     break;
                 case "gif":
                 case "jpeg":
@@ -142,26 +149,67 @@ final public class PartialHTTP1Server {
         }
 
         private String buildMessage(String command, String resource, String line2) {
+            OUT.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
             StringBuilder message = new StringBuilder();
             switch(command) {
                 case "PUT":
                 case "DELETE":
                 case "LINK":
                 case "UNLINK":
-                    return String.format("%s %s", SUPPORTED_VERSION, Response.NOT_IMPLEMENTED);
+                    return String.format("%s %s", HTML_SUPPORTED_VERSION, Response.NOT_IMPLEMENTED);
                 //TODO: Build message based off command and resource and second line
                 case "GET":
                 case "POST":
-
+                    String header = buildHeader(command, resource, line2);
+                    message.append(header);
+                    //Future implementations go here
                     break;
                 case "HEAD":
-
-                    break;
+                    return buildHeader(command, resource, line2);
                 default:
-                    return String.format("%s %s", SUPPORTED_VERSION, Response.BAD_REQUEST);
-
+                    return String.format("%s %s", HTML_SUPPORTED_VERSION, Response.BAD_REQUEST);
             }
+            OUT.printf("INFO: Built message%n==%n%s%n==%n.%n", message.toString());
             return message.toString();
+        }
+
+        private String buildHeader(String command, String resource, String line2) {
+            StringBuilder header = new StringBuilder();
+            File file = new File(resource);
+            if(!file.exists()) {
+                return String.format("%s %s", HTML_SUPPORTED_VERSION, Response.NOT_FOUND);
+            }
+
+            String fileName = file.getName();
+            String extension = fileName.substring(fileName.lastIndexOf('.') + 1);
+            String contentType = getMimeType(extension);
+            int contentLength;
+            Date lastModified = new Date(file.lastModified());
+            SimpleDateFormat sdf = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss z");
+            sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
+            String formattedModified = sdf.format(lastModified);
+            String contentEncoding = "identity";
+            String allow = "GET, POST, HEAD";
+            Calendar expires = Calendar.getInstance();
+            expires.add(Calendar.HOUR, 24);
+            String formattedExpires = sdf.format(expires.getTime());
+
+            try {
+                byte[] contents = Files.readAllBytes(file.toPath());
+                contentLength = contents.length;
+            } catch (IOException e) {
+                return String.format("%s %s", HTML_SUPPORTED_VERSION, Response.INTERNAL_SERVER_ERROR);
+            }
+
+            header.append(String.format("%s %s%n", HTML_SUPPORTED_VERSION, Response.OK));
+            header.append(String.format("Content-Type: %s%n", contentType));
+            header.append(String.format("Content-Length: %d%n", contentLength));
+            header.append(String.format("Last-Modified: %s%n", formattedModified));
+            header.append(String.format("Content-Encoding: %s%n", contentEncoding));
+            header.append(String.format("Allow: %s%n", allow));
+            header.append(String.format("Expires: %s%n", formattedExpires));
+
+            return header.toString();
         }
 
         private void writeMessage(String message) {
@@ -246,7 +294,7 @@ final public class PartialHTTP1Server {
                 4. Unit of time for #3 - Milliseconds or seconds, don't matter
                 5. The Work Queue - We just need any blocking queue so we'll use a linked queue
         */
-        ExecutorService threadPoolService = new ThreadPoolExecutor(5, 50, 5000,
+        ExecutorService threadPoolService = new ThreadPoolExecutor(5, 50, 1000,
                                                                     TimeUnit.MILLISECONDS,
                                                                         new LinkedBlockingQueue<Runnable>());
 
@@ -266,8 +314,6 @@ final public class PartialHTTP1Server {
             }
 
             try {
-                //Possibly need to change to singlethreadexecutor to handle timeouts
-                //TODO: Fix this to SingleThreadExecutor to support 5 second timeout
                 threadPoolService.execute(new ConnectionHandler(SOCKET));
 
             /*
