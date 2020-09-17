@@ -19,15 +19,15 @@ final public class PartialHTTP1Server {
     */
     enum Response {
         OK(200, "OK"),
-        NOT_MODIFIED(304, "NOT MODIFIED"),
-        BAD_REQUEST(400, "BAD REQUEST"),
-        FORBIDDEN(403, "FORBIDDEN"),
-        NOT_FOUND(404, "NOT FOUND"),
-        REQUEST_TIMEOUT(408, "REQUEST TIMEOUT"),
-        INTERNAL_SERVER_ERROR(500, "INTERNAL SERVER ERROR"),
-        NOT_IMPLEMENTED(501, "NOT IMPLEMENTED"),
-        SERVICE_UNAVAILABLE(503, "SERVICE UNAVAILABLE"),
-        HTTP_VERSION_NOT_SUPPORTED(505, "HTTP VERSION NOT SUPPORTED");
+        NOT_MODIFIED(304, "Not Modified"),
+        BAD_REQUEST(400, "Bad Request"),
+        FORBIDDEN(403, "Forbidden"),
+        NOT_FOUND(404, "Not Found"),
+        REQUEST_TIMEOUT(408, "Request Timeout"),
+        INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
+        NOT_IMPLEMENTED(501, "Not Implemented"),
+        SERVICE_UNAVAILABLE(503, "Service Unavailable"),
+        HTTP_VERSION_NOT_SUPPORTED(505, "HTTP Version Not Supported");
 
         private int code;
         private String message;
@@ -53,7 +53,6 @@ final public class PartialHTTP1Server {
 
     final static class ConnectionHandler implements Runnable {
 
-        private final String HTML_SUPPORTED_VERSION = "HTML/1.0";
         private final String HTTP_SUPPORTED_VERSION = "HTTP/1.0";
 
         private Socket SOCKET;
@@ -92,7 +91,7 @@ final public class PartialHTTP1Server {
                 If there aren't 3 tokens in the first line, it's a bad request
             */
             if(firstTokens.length != 3) {
-                this.writeMessage(String.format("%s %s", HTML_SUPPORTED_VERSION, Response.BAD_REQUEST));
+                this.writeMessage(String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.BAD_REQUEST));
                 this.close();
                 return;
             }
@@ -105,7 +104,7 @@ final public class PartialHTTP1Server {
                 If the HTML version is not 1.0, then it's not supported
             */
             if(!version.equals(HTTP_SUPPORTED_VERSION)) {
-                this.writeMessage(String.format("%s %s", HTML_SUPPORTED_VERSION, Response.HTTP_VERSION_NOT_SUPPORTED));
+                this.writeMessage(String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.HTTP_VERSION_NOT_SUPPORTED));
                 this.close();
                 return;
             }
@@ -149,14 +148,15 @@ final public class PartialHTTP1Server {
         }
 
         private String buildMessage(String command, String resource, String line2) {
-            OUT.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
+            System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
             StringBuilder message = new StringBuilder();
-            switch(command) {
+            switch(command.trim()) {
                 case "PUT":
                 case "DELETE":
                 case "LINK":
                 case "UNLINK":
-                    return String.format("%s %s", HTML_SUPPORTED_VERSION, Response.NOT_IMPLEMENTED);
+                    message.append(String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.NOT_IMPLEMENTED));
+                    break;
                 //TODO: Build message based off command and resource and second line
                 case "GET":
                 case "POST":
@@ -165,11 +165,12 @@ final public class PartialHTTP1Server {
                     //Future implementations go here
                     break;
                 case "HEAD":
-                    return buildHeader(command, resource, line2);
+                    message.append(buildHeader(command, resource, line2));
+                    break;
                 default:
-                    return String.format("%s %s", HTML_SUPPORTED_VERSION, Response.BAD_REQUEST);
+                    message.append(String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.BAD_REQUEST));
             }
-            OUT.printf("INFO: Built message%n==%n%s%n==%n.%n", message.toString());
+            System.out.printf("INFO: Built message%n%n\"%s\"%n%n", message.toString());
             return message.toString();
         }
 
@@ -177,7 +178,7 @@ final public class PartialHTTP1Server {
             StringBuilder header = new StringBuilder();
             File file = new File(resource);
             if(!file.exists()) {
-                return String.format("%s %s", HTML_SUPPORTED_VERSION, Response.NOT_FOUND);
+                return String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.NOT_FOUND);
             }
 
             String fileName = file.getName();
@@ -198,10 +199,10 @@ final public class PartialHTTP1Server {
                 byte[] contents = Files.readAllBytes(file.toPath());
                 contentLength = contents.length;
             } catch (IOException e) {
-                return String.format("%s %s", HTML_SUPPORTED_VERSION, Response.INTERNAL_SERVER_ERROR);
+                return String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.INTERNAL_SERVER_ERROR);
             }
 
-            header.append(String.format("%s %s%n", HTML_SUPPORTED_VERSION, Response.OK));
+            header.append(String.format("%s %s%n", HTTP_SUPPORTED_VERSION, Response.OK));
             header.append(String.format("Content-Type: %s%n", contentType));
             header.append(String.format("Content-Length: %d%n", contentLength));
             header.append(String.format("Last-Modified: %s%n", formattedModified));
@@ -213,7 +214,7 @@ final public class PartialHTTP1Server {
         }
 
         private void writeMessage(String message) {
-            System.out.printf("INFO: Wrote line \"%s\" to output.%n", message);
+            System.out.printf("INFO: Wrote line to output: %n%n\"%s\"%n%n", message);
             OUT.println(message);
         }
 
@@ -222,13 +223,13 @@ final public class PartialHTTP1Server {
             String line;
             try {
                 while (!(line = IN.readLine()).isEmpty()) {
-                    System.out.printf("INFO: Read line \"%s\" from input.%n", line);
-                    sb.append(line);
+                    System.out.printf("INFO: Read line from input: %n%n\"%s\"%n%n", line);
+                    sb.append(line + System.lineSeparator());
                 }
             } catch (IOException e) {
-                System.out.printf("NOTICE: Failed to read line from input stream.%n");
+                System.out.printf("NOTICE: Failed to read line from input stream. %s%n", e.getMessage());
             }
-            return sb.toString();
+            return sb.toString().trim();
         }
 
         private void close() {
