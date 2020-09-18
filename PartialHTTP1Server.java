@@ -1,7 +1,6 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -82,21 +81,21 @@ final public class PartialHTTP1Server {
             //TODO: Add 5 second timeout
             String message = this.readMessage();
             
-            String[] lines = message.split(System.lineSeparator());
-            String[] firstTokens = lines[0].split("\\s+");
+            String[] lines = message.split("\r\n");
+            String[] requestTokens = lines[0].split(" ");
 
             /*
                 If there aren't 3 tokens in the first line, it's a bad request
             */
-            if(firstTokens.length != 3) {
+            if(requestTokens.length != 3) {
                 this.writeMessage(buildStatusLine(Response.BAD_REQUEST));
                 this.close();
                 return;
             }
 
-            String command = firstTokens[0];
-            String resource = firstTokens[1];
-            String version = firstTokens[2];
+            String command = requestTokens[0];
+            String resource = requestTokens[1];
+            String version = requestTokens[2];
 
             /*
                 If the HTML version is not 1.0, then it's not supported
@@ -150,7 +149,7 @@ final public class PartialHTTP1Server {
             return String.format("%s/%s", type, extension);
         }
 
-        private String buildMessage(String command, String resource, String line2) {
+        private String buildMessage(String command, String resource, String headerLines) {
             System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
             StringBuilder message = new StringBuilder();
             switch(command.trim()) {
@@ -158,22 +157,22 @@ final public class PartialHTTP1Server {
                 case "DELETE":
                 case "LINK":
                 case "UNLINK":
-                    message.append(buildStatusLine(Response.HTTP_VERSION_NOT_SUPPORTED));
+                    message.append(buildStatusLine(Response.NOT_IMPLEMENTED));
                     break;
                 case "GET":
                 case "POST":
-                    String header = buildHeader(command, resource, line2);
+                    String header = buildHeader(command, resource, headerLines);
                     message.append(header);
                     //Future implementations go here
                     break;
                 case "HEAD":
-                    message.append(buildHeader(command, resource, line2));
+                    message.append(buildHeader(command, resource, headerLines));
                     break;
                 default:
                     message.append(buildStatusLine(Response.BAD_REQUEST));
             }
             System.out.printf("INFO: Built message%n%n\"%s\"%n%n", message.toString());
-            return message.toString();
+            return message.append("\r\n").toString();
         }
 
         private String buildStatusLine(Response response) {
