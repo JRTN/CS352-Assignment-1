@@ -89,7 +89,7 @@ final public class PartialHTTP1Server {
                 If there aren't 3 tokens in the first line, it's a bad request
             */
             if(firstTokens.length != 3) {
-                this.writeMessage(String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.BAD_REQUEST));
+                this.writeMessage(buildStatusLine(Response.BAD_REQUEST));
                 this.close();
                 return;
             }
@@ -102,7 +102,7 @@ final public class PartialHTTP1Server {
                 If the HTML version is not 1.0, then it's not supported
             */
             if(!version.equals(HTTP_SUPPORTED_VERSION)) {
-                this.writeMessage(String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.HTTP_VERSION_NOT_SUPPORTED));
+                this.writeMessage(buildStatusLine(Response.HTTP_VERSION_NOT_SUPPORTED));
                 this.close();
                 return;
             }
@@ -158,7 +158,7 @@ final public class PartialHTTP1Server {
                 case "DELETE":
                 case "LINK":
                 case "UNLINK":
-                    message.append(String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.NOT_IMPLEMENTED));
+                    message.append(buildStatusLine(Response.HTTP_VERSION_NOT_SUPPORTED));
                     break;
                 case "GET":
                 case "POST":
@@ -170,11 +170,20 @@ final public class PartialHTTP1Server {
                     message.append(buildHeader(command, resource, line2));
                     break;
                 default:
-                    message.append(String.format("%s %s", HTTP_SUPPORTED_VERSION, Response.BAD_REQUEST));
+                    message.append(buildStatusLine(Response.BAD_REQUEST));
             }
             System.out.printf("INFO: Built message%n%n\"%s\"%n%n", message.toString());
             return message.toString();
         }
+
+        private String buildStatusLine(Response response) {
+            return String.format("%d %s %s\r\n", response.getCode(), response.getMessage(), HTTP_SUPPORTED_VERSION);
+        }
+
+        private String buildHeaderLine(String fieldName, String value) {
+            return String.format("%s: %s\r\n", fieldName, value);
+        }
+
         /*
             Builds the HTTP header for a given command, resource, and second line argument
          */
