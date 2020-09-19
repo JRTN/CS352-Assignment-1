@@ -1,6 +1,8 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -112,11 +114,11 @@ final public class PartialHTTP1Server {
                 is not found in the responses, it returns null and in build message this translates to a bad request.
                 Otherwise, the message builds the message based off of the response.
             */
-            String line2 = null;
+            String headerLines = null;
             if(lines.length > 1) {
-                line2 = lines[1];
+                headerLines = lines[1];
             }
-            this.writeMessage(this.buildMessage(command, resource, line2));
+            this.writeMessage(this.buildMessage(command, resource, headerLines));
             this.close();
         }
 
@@ -172,13 +174,19 @@ final public class PartialHTTP1Server {
                     message.append(buildStatusLine(Response.BAD_REQUEST));
             }
             System.out.printf("INFO: Built message%n%n\"%s\"%n%n", message.toString());
-            return message.append("\r\n").toString();
+            return message.toString();
         }
 
+        /*
+            Formats a status line for a given response.
+         */
         private String buildStatusLine(Response response) {
             return String.format("%d %s %s\r\n", response.getCode(), response.getMessage(), HTTP_SUPPORTED_VERSION);
         }
 
+        /*
+            Formats a header line with the given field name and value.
+         */
         private String buildHeaderLine(String fieldName, String value) {
             return String.format("%s: %s\r\n", fieldName, value);
         }
@@ -186,8 +194,8 @@ final public class PartialHTTP1Server {
         /*
             Builds the HTTP header for a given command, resource, and second line argument
          */
-        private String buildHeader(String command, String resource, String line2) {
-            StringBuilder header = new StringBuilder();
+        private String buildHeader(String command, String resource, String requestFields) {
+            StringBuilder responseHeader = new StringBuilder();
 
             //Date formatter in GMT
             SimpleDateFormat sdf = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss z");
@@ -202,7 +210,39 @@ final public class PartialHTTP1Server {
 
             //TODO: Build message based off command and resource and second line
 
-            return header.toString();
+            Path path = Paths.get("." + resource);
+            File file = path.toFile();
+
+            System.out.printf("INFO: Opening object %s for response.%n", path.toString());
+
+            /* If file does not exist, we send error 404 */
+            if(!file.exists()) {
+                responseHeader.append(buildStatusLine(Response.NOT_FOUND));
+            } else {
+                String extension = resource.substring(resource.lastIndexOf('.') + 1);
+                String contentType = getMimeType(extension);
+                long contentLength = file.length();
+                Date lastModified = new Date(file.lastModified());
+                String contentEncoding = "identity";
+
+                /* Set expiry date to 24 hours in the future */
+                Date expires = new Date();
+                Calendar c = Calendar.getInstance();
+                c.setTime(expires);
+                c.add(Calendar.HOUR, 24);
+
+                responseHeader.append(buildStatusLine(Response.OK));
+                responseHeader.append(buildHeaderLine("Content-Type", contentType));
+                responseHeader.append(buildHeaderLine("Content-Length", Long.toString(contentLength)));
+                responseHeader.append(buildHeaderLine("Last-Modified", sdf.format(lastModified)));
+                responseHeader.append(buildHeaderLine("Content-Encoding", contentEncoding));
+                responseHeader.append(buildHeaderLine("Allow", "GET, POST, HEAD"));
+                responseHeader.append(buildHeaderLine("Expires", sdf.format(expires)));
+
+            }
+
+            responseHeader.append("\r\n");
+            return responseHeader.toString();
         }
 
         /*
@@ -211,7 +251,7 @@ final public class PartialHTTP1Server {
         //TODO: Fix this so messages are read by tester properly
         private void writeMessage(String message) {
             System.out.printf("INFO: Wrote line to output: %n%n\"%s\"%n%n", message);
-            OUT.println(message);
+            OUT.print(message);
         }
 
         /*
