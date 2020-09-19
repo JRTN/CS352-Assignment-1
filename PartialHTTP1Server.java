@@ -82,7 +82,6 @@ final public class PartialHTTP1Server {
 
         @Override
         public void run() {
-            //TODO: Add 5 second timeout
             String message = this.readMessage();
 
             if(message == null) {
@@ -209,8 +208,6 @@ final public class PartialHTTP1Server {
             SimpleDateFormat sdf = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss z");
             sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
 
-            //TODO: Add conditional get
-
             Path path = Paths.get("." + resource);
             File file = path.toFile();
 
@@ -234,7 +231,6 @@ final public class PartialHTTP1Server {
 
                 if(!file.canRead()) {
                     responseHeader.append(buildStatusLine(Response.FORBIDDEN));
-                    responseHeader.append("\r\n");
                     return responseHeader.toString();
                 }
 
@@ -246,13 +242,11 @@ final public class PartialHTTP1Server {
                         conditionalDate = sdf.parse(conditionalDateString);
                     } catch (ParseException e) {
                         responseHeader.append(buildStatusLine(Response.BAD_REQUEST));
-                        responseHeader.append("\r\n");
                         return responseHeader.toString();
                     }
 
-                    if(conditionalDate.after(lastModified)) {
+                    if(conditionalDate.before(lastModified)) {
                         responseHeader.append(buildStatusLine(Response.NOT_MODIFIED));
-                        responseHeader.append("\r\n");
                         return responseHeader.toString();
                     }
                 }
