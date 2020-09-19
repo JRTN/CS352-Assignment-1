@@ -3,6 +3,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -201,14 +202,7 @@ final public class PartialHTTP1Server {
             SimpleDateFormat sdf = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss z");
             sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
 
-            //Supported HTTP queries for filtering results
-            Set<String> supportedQueries = new HashSet<>() {
-                {
-                    add("If-Modified-Since");
-                }
-            };
-
-            //TODO: Build message based off command and resource and second line
+            //TODO: Add conditional get
 
             Path path = Paths.get("." + resource);
             File file = path.toFile();
@@ -231,6 +225,31 @@ final public class PartialHTTP1Server {
                 c.setTime(expires);
                 c.add(Calendar.HOUR, 24);
 
+                if(!file.canRead()) {
+                    responseHeader.append(buildStatusLine(Response.FORBIDDEN));
+                    responseHeader.append("\r\n");
+                    return responseHeader.toString();
+                }
+
+                String conditional = "If-Modified-Since: ";
+                if(requestFields != null && requestFields.contains(conditional)) {
+                    String conditionalDateString = requestFields.substring(conditional.length() + 1);
+                    Date conditionalDate;
+                    try {
+                        conditionalDate = sdf.parse(conditionalDateString);
+                    } catch (ParseException e) {
+                        responseHeader.append(buildStatusLine(Response.BAD_REQUEST));
+                        responseHeader.append("\r\n");
+                        return responseHeader.toString();
+                    }
+
+                    if(conditionalDate.after(lastModified)) {
+                        responseHeader.append(buildStatusLine(Response.NOT_MODIFIED));
+                        responseHeader.append("\r\n");
+                        return responseHeader.toString();
+                    }
+                }
+
                 responseHeader.append(buildStatusLine(Response.OK));
                 responseHeader.append(buildHeaderLine("Content-Type", contentType));
                 responseHeader.append(buildHeaderLine("Content-Length", Long.toString(contentLength)));
@@ -252,6 +271,7 @@ final public class PartialHTTP1Server {
         private void writeMessage(String message) {
             System.out.printf("INFO: Wrote line to output: %n%n\"%s\"%n%n", message);
             OUT.print(message);
+            OUT.flush();
         }
 
         /*
