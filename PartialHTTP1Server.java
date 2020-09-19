@@ -54,6 +54,7 @@ final public class PartialHTTP1Server {
     final static class ConnectionHandler implements Runnable {
 
         private final String HTTP_SUPPORTED_VERSION = "HTTP/1.0";
+        private final int REQUEST_TIMEOUT_MS = 5000;
 
         private Socket SOCKET;
         private BufferedReader IN;
@@ -83,6 +84,12 @@ final public class PartialHTTP1Server {
         public void run() {
             //TODO: Add 5 second timeout
             String message = this.readMessage();
+
+            if(message == null) {
+                this.writeMessage(buildStatusLine(Response.REQUEST_TIMEOUT));
+                this.close();
+                return;
+            }
             
             String[] lines = message.split("\r\n");
             String[] requestTokens = lines[0].split(" ");
@@ -281,7 +288,15 @@ final public class PartialHTTP1Server {
         private String readMessage() {
             StringBuilder sb = new StringBuilder();
             String line;
+            long start = System.currentTimeMillis();
+            long end = start + this.REQUEST_TIMEOUT_MS;
             try {
+                //Continually check if 5 seconds has passed while the buffered reader does not have any messages
+                while(!IN.ready()) {
+                    if(System.currentTimeMillis() > end) {
+                        return null;
+                    }
+                }
                 while (!(line = IN.readLine()).isEmpty()) {
                     System.out.printf("INFO: Read line from input: %n%n\"%s\"%n%n", line);
                     sb.append(line).append(System.lineSeparator());
