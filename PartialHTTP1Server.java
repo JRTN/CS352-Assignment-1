@@ -54,11 +54,12 @@ final public class PartialHTTP1Server {
     final static class ConnectionHandler implements Runnable {
 
         private final String HTTP_SUPPORTED_VERSION = "HTTP/1.0";
+        private final String HTTP_DATETIME_FORMAT = "E, d MMM yyyy HH:mm:ss z";
         private final int REQUEST_TIMEOUT_MS = 5000;
 
         private Socket SOCKET;
         private BufferedReader IN;
-        private PrintWriter OUT;
+        private BufferedWriter OUT;
 
         public ConnectionHandler(Socket socket) throws InstantiationException {
             this.SOCKET = socket;
@@ -67,7 +68,7 @@ final public class PartialHTTP1Server {
             */
             try {
                 this.IN = new BufferedReader(new InputStreamReader(this.SOCKET.getInputStream()));
-                this.OUT = new PrintWriter(this.SOCKET.getOutputStream());
+                this.OUT = new BufferedWriter(new OutputStreamWriter(this.SOCKET.getOutputStream()));
 
             /*
                 Error: Failed to create input or output stream for the socket
@@ -188,7 +189,7 @@ final public class PartialHTTP1Server {
             Formats a status line for a given response.
          */
         private String buildStatusLine(Response response) {
-            return String.format("%d %s %s\r\n", response.getCode(), response.getMessage(), HTTP_SUPPORTED_VERSION);
+            return String.format("%s %d %s\r\n", HTTP_SUPPORTED_VERSION, response.getCode(), response.getMessage());
         }
 
         /*
@@ -205,7 +206,7 @@ final public class PartialHTTP1Server {
             StringBuilder responseHeader = new StringBuilder();
 
             //Date formatter in GMT
-            SimpleDateFormat sdf = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss z");
+            SimpleDateFormat sdf = new SimpleDateFormat(this.HTTP_DATETIME_FORMAT);
             sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
 
             Path path = Paths.get("." + resource);
@@ -261,18 +262,21 @@ final public class PartialHTTP1Server {
 
             }
 
-            responseHeader.append("\r\n");
+            //responseHeader.append("\r\n");
             return responseHeader.toString();
         }
 
         /*
             Write a message to the output stream. Does not modify the message at all.
          */
-        //TODO: Fix this so messages are read by tester properly
         private void writeMessage(String message) {
             System.out.printf("INFO: Wrote line to output: %n%n\"%s\"%n%n", message);
-            OUT.print(message);
-            OUT.flush();
+            try {
+                OUT.write(message);
+                OUT.flush();
+            } catch (IOException e) {
+                System.out.printf("INFO: Failed to write to output stream.%n");
+            }
         }
 
         /*
@@ -396,9 +400,10 @@ final public class PartialHTTP1Server {
             } catch (final RejectedExecutionException e) {
                 try {
                     //Write error 503 to the socket's output stream
-                    PrintWriter OUT = new PrintWriter(SOCKET.getOutputStream(), true);
-                    OUT.printf("HTTP/1.0 %s", Response.SERVICE_UNAVAILABLE);
+                    BufferedWriter OUT = new BufferedWriter(new OutputStreamWriter(SOCKET.getOutputStream()));
+                    OUT.write(String.format("HTTP/1.0 %s\r\n", Response.SERVICE_UNAVAILABLE));
                     //Clean up connections
+                    OUT.flush();
                     OUT.close();
                     SOCKET.close();
 
@@ -421,4 +426,3 @@ final public class PartialHTTP1Server {
         }  
     }
 }
-
