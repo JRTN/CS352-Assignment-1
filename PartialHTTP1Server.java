@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.ParseException;
@@ -252,6 +253,14 @@ final public class PartialHTTP1Server {
                     }
                 }
 
+                byte[] contents;
+                try {
+                    contents = Files.readAllBytes(path);
+                } catch (IOException e) {
+                    responseHeader.append(buildStatusLine(Response.INTERNAL_SERVER_ERROR));
+                    return responseHeader.toString();
+                }
+
                 responseHeader.append(buildStatusLine(Response.OK));
                 responseHeader.append(buildHeaderLine("Content-Type", contentType));
                 responseHeader.append(buildHeaderLine("Content-Length", Long.toString(contentLength)));
@@ -259,10 +268,11 @@ final public class PartialHTTP1Server {
                 responseHeader.append(buildHeaderLine("Content-Encoding", contentEncoding));
                 responseHeader.append(buildHeaderLine("Allow", "GET, POST, HEAD"));
                 responseHeader.append(buildHeaderLine("Expires", sdf.format(expires)));
-
+                responseHeader.append("\r\n");
+                responseHeader.append(new String(contents));
+                responseHeader.append("\r\n");
             }
 
-            //responseHeader.append("\r\n");
             return responseHeader.toString();
         }
 
