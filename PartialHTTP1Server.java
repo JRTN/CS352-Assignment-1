@@ -120,12 +120,6 @@ final public class PartialHTTP1Server {
                 return;
             }
 
-            /*
-                Here we get the appropriate response from our responses hashmap and pass it along with the resource
-                and second line (which contains filtering information) to the message building method. If the command
-                is not found in the responses, it returns null and in build message this translates to a bad request.
-                Otherwise, the message builds the message based off of the response.
-            */
             String headerLines = null;
             if (lines.length > 1) {
                 headerLines = lines[1];
@@ -259,18 +253,18 @@ final public class PartialHTTP1Server {
                 Date conditionalDate;
                 try {
                     conditionalDate = sdf.parse(conditionalDateString);
-                        /*
-                            Error: We can't parse the conditional date
-                            Resolution: Send response bad request
-                         */
+                 /*
+                     Error: We can't parse the conditional date
+                     Resolution: Send response bad request
+                  */
                 } catch (ParseException e) {
                     responseHeader.append(buildStatusLine(Response.BAD_REQUEST));
                     return responseHeader.toString();
                 }
 
-                    /*
-                        If the requested modified date is after when it was modified, then we send not modified
-                     */
+                 /*
+                     If the requested modified date is after when it was modified, then we send not modified
+                  */
                 if (conditionalDate.after(lastModified)) {
                     responseHeader.append(buildStatusLine(Response.NOT_MODIFIED));
                     return responseHeader.toString();
@@ -280,10 +274,10 @@ final public class PartialHTTP1Server {
             byte[] contents;
             try {
                 contents = Files.readAllBytes(path);
-                    /*
-                        Error: Failed to read contents of the file
-                        Resolution: Send response internal server error
-                     */
+             /*
+                 Error: Failed to read contents of the file
+                 Resolution: Send response internal server error
+              */
             } catch (IOException e) {
                 responseHeader.append(buildStatusLine(Response.INTERNAL_SERVER_ERROR));
                 return responseHeader.toString();
