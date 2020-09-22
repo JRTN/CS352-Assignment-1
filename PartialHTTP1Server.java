@@ -63,6 +63,7 @@ final public class PartialHTTP1Server {
         private Socket SOCKET;
         private BufferedReader IN;
         private BufferedWriter OUT;
+        private BufferedOutputStream OUT_RAW;
         private SimpleDateFormat dateFormatter;
 
 
@@ -74,6 +75,7 @@ final public class PartialHTTP1Server {
             try {
                 this.IN = new BufferedReader(new InputStreamReader(this.SOCKET.getInputStream()));
                 this.OUT = new BufferedWriter(new OutputStreamWriter(this.SOCKET.getOutputStream()));
+                this.OUT_RAW = new BufferedOutputStream(this.SOCKET.getOutputStream());
 
             /*
                 Error: Failed to create input or output stream for the socket
@@ -218,11 +220,12 @@ final public class PartialHTTP1Server {
                         return;
                     }
 
-                    for(byte b : payload) {
-                        message.append(b);
+                    try {
+                        this.send(message.toString());
+                        this.send(payload);
+                    } catch (IOException e) {
+                        System.out.printf("ERROR: Failed to write payload to output: %s%n", e.getMessage());
                     }
-
-                    this.writeMessage(message.toString());
                     return;
                 default:
                     this.writeMessage(buildStatusLine(StatusCode.BAD_REQUEST));
@@ -314,6 +317,15 @@ final public class PartialHTTP1Server {
             }
         }
 
+        private void send(String str) throws IOException {
+            this.send(str.getBytes());
+        }
+
+        private void send(byte[] bytes) throws IOException {
+            this.OUT_RAW.write(bytes);
+            this.OUT_RAW.flush();
+        }
+
         /*
             Read a message from the input stream. Pieces it together line by line and trims any trailing
             white space that may mess with String.split()
@@ -348,9 +360,9 @@ final public class PartialHTTP1Server {
                 // "Once your response has been sent, you should flush() your output streams, wait a quarter second, 
                 // close down all communication objects and cleanly exit the communication Thread"
                 System.out.printf("INFO: Closing socket, input, and output.%n");
-                this.SOCKET.close();
-                this.IN.close();
-                this.OUT.close();
+                if(this.SOCKET != null) this.SOCKET.close();
+                if(this.IN != null) this.IN.close();
+                if(this.OUT != null) this.OUT.close();
                 Thread.sleep(250); //
             /*
                 Error: Failed to close a connection
