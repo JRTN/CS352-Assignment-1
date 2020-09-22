@@ -113,7 +113,7 @@ final public class ConnectionHandler implements Runnable {
     /*
         Builds a response message given a request
      */
-    private void sendResponse(String command, String resource, String headerLines) {
+    private void sendResponse(String command, String resource, String conditionalLine) {
         System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
         switch (command.trim()) {
             case "PUT":
@@ -148,7 +148,7 @@ final public class ConnectionHandler implements Runnable {
                     return;
                 }
 
-                send(buildHeader(file, getConditionalDateString(headerLines)));
+                send(buildHeader(file, getConditionalDateString(conditionalLine)));
                 send(payload);
                 return;
             default:
