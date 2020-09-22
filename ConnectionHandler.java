@@ -10,7 +10,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.TimeZone;
 
-public class ConnectionHandler implements Runnable {
+final public class ConnectionHandler implements Runnable {
 
     //Currently only support HTTP 1.0
     private final String HTTP_SUPPORTED_VERSION = "HTTP/1.0";
@@ -92,7 +92,7 @@ public class ConnectionHandler implements Runnable {
     }
 
     private String getConditionalDateString(String headerLines) {
-        if(headerLines == null) {
+        if (headerLines == null) {
             return null;
         }
         return headerLines.substring("If-Modified-Since: ".length());
@@ -116,7 +116,7 @@ public class ConnectionHandler implements Runnable {
     private void sendResponse(String command, String resource, String headerLines) {
         System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
         File file = getResource(resource);
-        if(!file.exists()) {
+        if (!file.exists()) {
             send(buildStatusLine(Types.StatusCode.NOT_FOUND));
             return;
         }
@@ -132,7 +132,7 @@ public class ConnectionHandler implements Runnable {
             case "HEAD":
                 StringBuilder message = new StringBuilder();
 
-                if(command.equals("HEAD")) {
+                if (command.equals("HEAD")) {
                     message.append(buildHeader(file, getConditionalDateString(null)));
                     send(message.toString());
                     return;
@@ -168,11 +168,11 @@ public class ConnectionHandler implements Runnable {
     }
 
     private String buildHeader(File file, String conditionalDateString) {
-        if(conditionalDateString != null) {
+        if (conditionalDateString != null) {
             Date conditionalDate = parseDate(conditionalDateString);
             Date lastModified = new Date(file.lastModified());
 
-            if(lastModified.before(conditionalDate)) {
+            if (lastModified.before(conditionalDate)) {
                 return buildStatusLine(Types.StatusCode.NOT_MODIFIED) +
                         buildHeaderLine(Types.HeaderField.Expires, file);
             }
@@ -192,7 +192,7 @@ public class ConnectionHandler implements Runnable {
     public String buildHeaderLine(Types.HeaderField field, File file) {
         String headerLine = field.toString() + ": %s\r\n";
         String value;
-        switch(field) {
+        switch (field) {
             case ContentType:
                 String filePath = file.getPath();
                 String extension = filePath.substring(filePath.lastIndexOf('.') + 1);
@@ -289,10 +289,13 @@ public class ConnectionHandler implements Runnable {
             // "Once your response has been sent, you should flush() your output streams, wait a quarter second,
             // close down all communication objects and cleanly exit the communication Thread"
             System.out.printf("INFO: Closing socket, input, and output.%n");
-            if(SOCKET != null) SOCKET.close();
-            if(IN != null) IN.close();
-            if(OUT != null) OUT.close();
-            Thread.sleep(250); //
+            if (OUT != null) OUT.flush();
+
+            Thread.sleep(250);
+
+            if (SOCKET != null) SOCKET.close();
+            if (IN != null) IN.close();
+            if (OUT != null) OUT.close();
             /*
                 Error: Failed to close a connection
                 Resolution: Warn user and move on.

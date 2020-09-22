@@ -1,6 +1,6 @@
 import java.util.Arrays;
 
-public class Types {
+final public class Types {
     enum StatusCode {
         OK(200, "OK"),
         NOT_MODIFIED(304, "Not Modified"),
@@ -34,6 +34,7 @@ public class Types {
             return String.format("%d %s", code, message);
         }
     }
+
     enum MIME {
 
         HTML("html", "text", "html"),
@@ -44,9 +45,9 @@ public class Types {
         PDF("pdf", "application", "pdf"),
         OCTETSTREAM(null, "application", "octet-stream");
 
-        private String extension;
-        private String type;
-        private String subtype;
+        private final String extension;
+        private final String type;
+        private final String subtype;
 
         MIME(String ext, String t, String s) {
             extension = ext;
@@ -69,6 +70,7 @@ public class Types {
             return String.format("%s/%s", type, subtype);
         }
     }
+
     enum HeaderField {
 
         ContentType("Content-Type"),
