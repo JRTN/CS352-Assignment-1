@@ -115,11 +115,6 @@ final public class ConnectionHandler implements Runnable {
      */
     private void sendResponse(String command, String resource, String headerLines) {
         System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
-        File file = getResource(resource);
-        if (!file.exists()) {
-            send(buildStatusLine(Types.StatusCode.NOT_FOUND));
-            return;
-        }
         switch (command.trim()) {
             case "PUT":
             case "DELETE":
@@ -130,15 +125,17 @@ final public class ConnectionHandler implements Runnable {
             case "GET":
             case "POST":
             case "HEAD":
-                StringBuilder message = new StringBuilder();
 
-                if (command.equals("HEAD")) {
-                    message.append(buildHeader(file, getConditionalDateString(null)));
-                    send(message.toString());
+                File file = getResource(resource);
+                if (!file.exists()) {
+                    send(buildStatusLine(Types.StatusCode.NOT_FOUND));
                     return;
                 }
 
-                message.append(buildHeader(file, getConditionalDateString(headerLines)));
+                if (command.equals("HEAD")) {
+                    send(buildHeader(file, getConditionalDateString(null)));
+                    return;
+                }
 
                 byte[] payload;
                 try {
@@ -151,7 +148,7 @@ final public class ConnectionHandler implements Runnable {
                     return;
                 }
 
-                send(message.toString());
+                send(buildHeader(file, getConditionalDateString(headerLines)));
                 send(payload);
                 return;
             default:
