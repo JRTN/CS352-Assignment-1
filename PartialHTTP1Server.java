@@ -1,9 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -18,7 +16,7 @@ final public class PartialHTTP1Server {
     /*
         Enum containing response codes and messages in case they need to be sent as readable strings
     */
-    enum Response {
+    enum StatusCode {
         OK(200, "OK"),
         NOT_MODIFIED(304, "Not Modified"),
         BAD_REQUEST(400, "Bad Request"),
@@ -33,8 +31,8 @@ final public class PartialHTTP1Server {
         private int code;
         private String message;
 
-        private Response(int responseCode, String responseMessage) {
-            this.code = responseCode;
+        private StatusCode(int statusCode, String responseMessage) {
+            this.code = statusCode;
             this.message = responseMessage;
         }
 
@@ -57,13 +55,16 @@ final public class PartialHTTP1Server {
         //Currently only support HTTP 1.0
         private final String HTTP_SUPPORTED_VERSION = "HTTP/1.0";
         //Form of: Sun, 20 Sep 2020 04:49:17 GMT
-        private final String HTTP_DATETIME_FORMAT = "E, d MMM yyyy HH:mm:ss z";
+        private final String HTTP_DATETIME_FORMAT = "E, dd MMM yyyy HH:mm:ss z";
+        private final String HTTP_DATETIME_ZONE = "GMT";
         //The time we want to wait for a request
         private final int REQUEST_TIMEOUT_MS = 5000;
 
         private Socket SOCKET;
         private BufferedReader IN;
         private BufferedWriter OUT;
+        private SimpleDateFormat dateFormatter;
+
 
         public ConnectionHandler(Socket socket) throws InstantiationException {
             this.SOCKET = socket;
@@ -83,6 +84,8 @@ final public class PartialHTTP1Server {
                 this.close();
                 throw new InstantiationException("Failed to create IO streams.");
             }
+            this.dateFormatter = new SimpleDateFormat(this.HTTP_DATETIME_FORMAT);
+            this.dateFormatter.setTimeZone(TimeZone.getTimeZone(this.HTTP_DATETIME_ZONE));
         }
 
         @Override
@@ -90,7 +93,7 @@ final public class PartialHTTP1Server {
             String message = this.readMessage(REQUEST_TIMEOUT_MS);
 
             if (message == null) {
-                this.writeMessage(buildStatusLine(Response.REQUEST_TIMEOUT));
+                this.writeMessage(buildStatusLine(StatusCode.REQUEST_TIMEOUT));
                 this.close();
                 return;
             }
@@ -102,7 +105,7 @@ final public class PartialHTTP1Server {
                 If there aren't 3 tokens in the first line, it's a bad request
             */
             if (requestTokens.length != 3) {
-                this.writeMessage(buildStatusLine(Response.BAD_REQUEST));
+                this.writeMessage(buildStatusLine(StatusCode.BAD_REQUEST));
                 this.close();
                 return;
             }
@@ -115,7 +118,7 @@ final public class PartialHTTP1Server {
                 If the HTML version is not 1.0, then it's not supported
             */
             if (!version.equals(HTTP_SUPPORTED_VERSION)) {
-                this.writeMessage(buildStatusLine(Response.HTTP_VERSION_NOT_SUPPORTED));
+                this.writeMessage(buildStatusLine(StatusCode.HTTP_VERSION_NOT_SUPPORTED));
                 this.close();
                 return;
             }
@@ -124,7 +127,7 @@ final public class PartialHTTP1Server {
             if (lines.length > 1) {
                 headerLines = lines[1];
             }
-            this.writeMessage(this.buildMessage(command, resource, headerLines));
+            this.sendResponse(command, resource, headerLines);
             this.close();
         }
 
@@ -149,6 +152,9 @@ final public class PartialHTTP1Server {
                 case "png":
                     type = "image";
                     break;
+                case "pdf":
+                    type = "application";
+                    break;
                 default:
                     type = "application";
                     extension = "octet-stream";
@@ -157,41 +163,78 @@ final public class PartialHTTP1Server {
             return String.format("%s/%s", type, extension);
         }
 
+        private String getConditionalDateString(String headerlines) {
+            return "";
+        }
+
+        private Date parseDate(String dateString) {
+            try {
+                return this.dateFormatter.parse(dateString);
+            } catch (ParseException e) {
+                return new Date(0);
+            }
+        }
+
+        private String formatDate(Date date) {
+            return this.dateFormatter.format(date);
+        }
+
         /*
             Builds a response message given a request
          */
-        private String buildMessage(String command, String resource, String headerLines) {
+        private void sendResponse(String command, String resource, String headerLines) {
             System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
-            StringBuilder message = new StringBuilder();
+            File file = this.getResource(resource);
+            if(!file.exists()) {
+                this.writeMessage(buildStatusLine(StatusCode.NOT_FOUND));
+                return;
+            }
             switch (command.trim()) {
                 case "PUT":
                 case "DELETE":
                 case "LINK":
                 case "UNLINK":
-                    message.append(buildStatusLine(Response.NOT_IMPLEMENTED));
-                    break;
+                    this.writeMessage(buildStatusLine(StatusCode.NOT_IMPLEMENTED));
+                    return;
                 case "GET":
                 case "POST":
-                    String header = buildHeader(command, resource, headerLines);
-                    message.append(header);
-                    //Future implementations go here
-                    break;
                 case "HEAD":
-                    message.append(buildHeader(command, resource, headerLines));
-                    break;
+                    StringBuilder message = new StringBuilder();
+                    message.append(buildHeader(file, this.getConditionalDateString(headerLines)));
+
+                    if(command.equals("HEAD")) {
+                        this.writeMessage(message.toString());
+                        return;
+                    }
+
+                    byte[] payload;
+                    try {
+                        payload = this.buildPayload(file);
+                    } catch (AccessDeniedException e) {
+                        this.writeMessage(buildStatusLine(StatusCode.FORBIDDEN));
+                        return;
+                    } catch (IOException e) {
+                        this.writeMessage(buildStatusLine(StatusCode.INTERNAL_SERVER_ERROR));
+                        return;
+                    }
+
+                    for(byte b : payload) {
+                        message.append(b);
+                    }
+
+                    this.writeMessage(message.toString());
+                    return;
                 default:
-                    message.append(buildStatusLine(Response.BAD_REQUEST));
+                    this.writeMessage(buildStatusLine(StatusCode.BAD_REQUEST));
             }
-            System.out.printf("INFO: Built message%n%n\"%s\"%n%n", message.toString());
-            return message.toString();
         }
 
         /*
             Formats a status line for a given response. The format of a status line is
                 HTTP/<ver> <code> <desc>\r\n
          */
-        private String buildStatusLine(Response response) {
-            return String.format("%s %d %s\r\n", HTTP_SUPPORTED_VERSION, response.getCode(), response.getMessage());
+        private String buildStatusLine(StatusCode statusCode) {
+            return String.format("%s %d %s\r\n", HTTP_SUPPORTED_VERSION, statusCode.getCode(), statusCode.getMessage());
         }
 
         /*
@@ -211,92 +254,51 @@ final public class PartialHTTP1Server {
                 <header_linen>
                 \r\n
                 <payload>
+            This method assumes the file DOES EXIST
          */
-        private String buildHeader(String command, String resource, String requestFields) {
-            StringBuilder responseHeader = new StringBuilder();
 
-            //Date formatter in GMT
-            SimpleDateFormat sdf = new SimpleDateFormat(this.HTTP_DATETIME_FORMAT);
-            sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
-
-            Path path = Paths.get("." + resource);
-            File file = path.toFile();
-
-            System.out.printf("INFO: Opening object %s for response.%n", path.toString());
-
-            /* If file does not exist, we respond with not found */
-            if (!file.exists()) {
-                responseHeader.append(buildStatusLine(Response.NOT_FOUND));
-                return responseHeader.toString();
-            }
-            String extension = resource.substring(resource.lastIndexOf('.') + 1);
-            String contentType = getMimeType(extension);
+        private String buildHeader(File file, String conditionalDateString) {
+            String filePath = file.getPath();
+            String extension = filePath.substring(filePath.lastIndexOf('.') + 1);
+            String contentType = this.getMimeType(extension);
             long contentLength = file.length();
             Date lastModified = new Date(file.lastModified());
             String contentEncoding = "identity";
 
-            /* Set expiry date to 24 hours in the future */
+            Date conditionalDate = this.parseDate(conditionalDateString);
+
+            if (lastModified.before(conditionalDate)) {
+                return buildStatusLine(StatusCode.NOT_MODIFIED);
+            }
+
             Date expires = new Date();
             Calendar c = Calendar.getInstance();
             c.setTime(expires);
             c.add(Calendar.HOUR, 24);
+            expires = c.getTime();
 
-            //If we can't access the file, then it's response code forbidden
-            if (!file.canRead()) {
-                responseHeader.append(buildStatusLine(Response.FORBIDDEN));
-                return responseHeader.toString();
-            }
-
-            String conditional = "If-Modified-Since: ";
-            if (requestFields != null && requestFields.contains(conditional)) {
-                String conditionalDateString = requestFields.substring(conditional.length() + 1);
-                Date conditionalDate;
-                try {
-                    conditionalDate = sdf.parse(conditionalDateString);
-                 /*
-                     Error: We can't parse the conditional date
-                     Resolution: Send response bad request
-                  */
-                } catch (ParseException e) {
-                    responseHeader.append(buildStatusLine(Response.BAD_REQUEST));
-                    return responseHeader.toString();
-                }
-
-                 /*
-                     If the requested modified date is after when it was modified, then we send not modified
-                  */
-                if (conditionalDate.after(lastModified)) {
-                    responseHeader.append(buildStatusLine(Response.NOT_MODIFIED));
-                    return responseHeader.toString();
-                }
-            }
-
-            byte[] contents;
-            try {
-                contents = Files.readAllBytes(path);
-             /*
-                 Error: Failed to read contents of the file
-                 Resolution: Send response internal server error
-              */
-            } catch (IOException e) {
-                responseHeader.append(buildStatusLine(Response.INTERNAL_SERVER_ERROR));
-                return responseHeader.toString();
-            }
+            StringBuilder responseHeader = new StringBuilder();
 
             //Build the header with its status line and header lines
-            responseHeader.append(buildStatusLine(Response.OK));
+            responseHeader.append(buildStatusLine(StatusCode.OK));
             responseHeader.append(buildHeaderLine("Content-Type", contentType));
             responseHeader.append(buildHeaderLine("Content-Length", Long.toString(contentLength)));
-            responseHeader.append(buildHeaderLine("Last-Modified", sdf.format(lastModified)));
+            responseHeader.append(buildHeaderLine("Last-Modified", this.formatDate(lastModified)));
             responseHeader.append(buildHeaderLine("Content-Encoding", contentEncoding));
             responseHeader.append(buildHeaderLine("Allow", "GET, POST, HEAD"));
-            responseHeader.append(buildHeaderLine("Expires", sdf.format(expires)));
+            responseHeader.append(buildHeaderLine("Expires", this.formatDate(expires)));
             responseHeader.append("\r\n");
-            responseHeader.append(new String(contents));
-            responseHeader.append("\r\n");
-
 
             return responseHeader.toString();
+        }
+
+        private byte[] buildPayload(File resource) throws IOException {
+            return Files.readAllBytes(resource.toPath());
+        }
+
+        private File getResource(String resource) {
+            Path path = Paths.get("." + resource);
+            return path.toFile();
         }
 
         /*
@@ -434,7 +436,7 @@ final public class PartialHTTP1Server {
                 try {
                     //Write error 503 to the socket's output stream
                     BufferedWriter OUT = new BufferedWriter(new OutputStreamWriter(SOCKET.getOutputStream()));
-                    OUT.write(String.format("HTTP/1.0 %s\r\n", Response.SERVICE_UNAVAILABLE));
+                    OUT.write(String.format("HTTP/1.0 %s\r\n", StatusCode.SERVICE_UNAVAILABLE));
                     //Clean up connections
                     OUT.flush();
                     OUT.close();
