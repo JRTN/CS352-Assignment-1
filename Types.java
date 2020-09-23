@@ -1,6 +1,10 @@
 import java.util.Arrays;
 
 final public class Types {
+    /*
+        Defines the status codes which we implement in our http server. Response codes consist of
+        an integer response code and a string message describing what that code means.
+     */
     enum StatusCode {
         OK(200, "OK"),
         NOT_MODIFIED(304, "Not Modified"),
@@ -29,12 +33,22 @@ final public class Types {
             return message;
         }
 
+        /*
+            Returns the response in the appropriate format for HTTP status lines
+         */
         @Override
         public String toString() {
             return String.format("%d %s", code, message);
         }
     }
 
+    /*
+        Defines the MIME types and their associated extension. Each MIME type
+        consists of three parts
+            1. The extension which indicates it is of that type
+            2. The type of the data
+            3. The subtype of the data
+     */
     enum MIME {
 
         HTML("html", "text", "html"),
@@ -55,8 +69,12 @@ final public class Types {
             subtype = s;
         }
 
+        /*
+            Gets the appropriate MIME type from a file extension. This is achieved
+            by checking each type to see if the extension matches.
+         */
         public static MIME get(String ext) {
-            for (MIME mime : Arrays.asList(HTML, TXT, GIF, JPEG, PNG, PDF)) {
+            for (MIME mime : MIME.values()) {
                 if (mime.extension.equals(ext)) {
                     return mime;
                 }
@@ -65,12 +83,19 @@ final public class Types {
         }
 
 
+        /*
+            Returns the MIME type in the appropriate format for HTTP header lines
+         */
         @Override
         public String toString() {
             return String.format("%s/%s", type, subtype);
         }
     }
 
+    /*
+        The header fields which can be found in HTTP responses. Consists only
+        of the header field string.
+     */
     enum HeaderField {
 
         ContentType("Content-Type"),
