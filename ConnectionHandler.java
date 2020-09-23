@@ -50,7 +50,15 @@ final public class ConnectionHandler implements Runnable {
     public void run() {
         //The time we want to wait for a request
         int REQUEST_TIMEOUT_MS = 5000;
-        String message = receive(REQUEST_TIMEOUT_MS);
+        String message;
+        try {
+            message = receive(REQUEST_TIMEOUT_MS);
+        } catch (IOException e) {
+            System.out.printf("ERROR: Failed to read input from socket. %s%n", e.getMessage());
+            send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
+            close();
+            return;
+        }
 
         if (message == null) {
             send(buildStatusLine(Types.StatusCode.REQUEST_TIMEOUT));
@@ -91,6 +99,11 @@ final public class ConnectionHandler implements Runnable {
         close();
     }
 
+    /*
+        Finds the conditional string in the request header lines and extracts it.
+        Currently only expects one line, but can be expanded if later more complicated
+        headers are given
+     */
     private String getConditionalDateString(String headerLines) {
         if (headerLines == null) {
             return null;
@@ -98,6 +111,11 @@ final public class ConnectionHandler implements Runnable {
         return headerLines.substring("If-Modified-Since: ".length());
     }
 
+    /*
+        Attempts to parse a date from a string using our SimpleDateFormatter. If the date we try
+        to parse is invalid, then it will be set to the first Date available. Meaning, it is
+        always before all other dates.
+     */
     private Date parseDate(String dateString) {
         try {
             return dateFormatter.parse(dateString);
@@ -106,22 +124,28 @@ final public class ConnectionHandler implements Runnable {
         }
     }
 
+    /*
+        Formats a Date using our SimpleDateFormatter
+     */
     private String formatDate(Date date) {
         return dateFormatter.format(date);
     }
 
     /*
-        Builds a response message given a request
+        Passes appropriate information to the build methods and then collects the output.
+        Compiles the message and sends it via the output methods.
      */
     private void sendResponse(String command, String resource, String conditionalLine) {
         System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
         switch (command.trim()) {
+            //UNIMPLEMENTED COMMANDS
             case "PUT":
             case "DELETE":
             case "LINK":
             case "UNLINK":
                 send(buildStatusLine(Types.StatusCode.NOT_IMPLEMENTED));
                 return;
+            //IMPLEMENTED COMMANDS
             case "GET":
             case "POST":
             case "HEAD":
@@ -132,6 +156,7 @@ final public class ConnectionHandler implements Runnable {
                     return;
                 }
 
+                //If the command is HEAD, then we only send a header built based off of the resource
                 if (command.equals("HEAD")) {
                     send(buildHeader(file, getConditionalDateString(null)));
                     return;
@@ -140,18 +165,24 @@ final public class ConnectionHandler implements Runnable {
                 byte[] payload;
                 try {
                     payload = buildPayload(file);
+                    //An AccessDeniedException indicates we need to write FORBIDDEN as the file is not
+                    //able to be opened by the user
                 } catch (AccessDeniedException e) {
                     send(buildStatusLine(Types.StatusCode.FORBIDDEN));
                     return;
+                    //General catch-all for the rest of the exceptions. Indicates something non permission
+                    //related went wrong and we need to send INTERNAL_SERVER_ERROR
                 } catch (IOException e) {
                     send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
                     return;
                 }
 
+                //For GET and POST, send both the header and payload
                 send(buildHeader(file, getConditionalDateString(conditionalLine)));
                 send(payload);
                 return;
             default:
+                //Commands that are not recognized are bad requests
                 send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
         }
     }
@@ -164,17 +195,26 @@ final public class ConnectionHandler implements Runnable {
         return String.format("%s %d %s\r\n", HTTP_SUPPORTED_VERSION, statusCode.getCode(), statusCode.getMessage());
     }
 
+    /*
+        Builds and formats a header for a given resource and header lines. Currently only
+        expects one line (the conditional header line) as a second argument.
+     */
     private String buildHeader(File file, String conditionalDateString) {
+        //If there is a conditional String, then we need to check the last modified date
+        //of the file against the current date
         if (conditionalDateString != null) {
             Date conditionalDate = parseDate(conditionalDateString);
             Date lastModified = new Date(file.lastModified());
 
+            //We send NOT_MODIFIED if the file was last modified before the conditional date
             if (lastModified.before(conditionalDate)) {
                 return buildStatusLine(Types.StatusCode.NOT_MODIFIED) +
                         buildHeaderLine(Types.HeaderField.Expires, file);
             }
         }
 
+        //Call builder methods with the appropriate fields and OK status as all other checks
+        //have passed and this is a valid request
         return buildStatusLine(Types.StatusCode.OK) +
                 buildHeaderLine(Types.HeaderField.ContentType, file) +
                 buildHeaderLine(Types.HeaderField.ContentLength, file) +
@@ -186,13 +226,28 @@ final public class ConnectionHandler implements Runnable {
     }
 
 
+    /*
+        Builds and formats a header line for a given header field and file.
+        A header line is of the format
+            <field>: <value>\r\n
+        Where the field is defined in Types.Headerfield and the value is determined
+        from the file. We can assume the file exists because we only pass this method
+        a valid file
+     */
     public String buildHeaderLine(Types.HeaderField field, File file) {
         String headerLine = field.toString() + ": %s\r\n";
         String value;
         switch (field) {
             case ContentType:
                 String filePath = file.getPath();
+                //The file extension is the substring starting at the last location of the
+                //'.' character. Note that if there is no dot character (and thus no extension)
+                //the substring equals the file name.
                 String extension = filePath.substring(filePath.lastIndexOf('.') + 1);
+                //If the extension equals the filename, then it has no extension.
+                if (extension.equals(file.getName())) {
+                    extension = "";
+                }
                 Types.MIME mime = Types.MIME.get(extension);
                 value = mime.toString();
                 break;
@@ -208,14 +263,17 @@ final public class ConnectionHandler implements Runnable {
                 break;
 
             case ContentEncoding:
+                //Currently we do not encode content, so the value is identity
                 value = "identity";
                 break;
 
             case Allow:
+                //Return the allowed HTTP request types
                 value = "GET, HEAD, POST";
                 break;
 
             case Expires:
+                //Currently we set packets to expire in 24 hours.
                 Calendar c = Calendar.getInstance();
                 c.setTime(new Date());
                 c.add(Calendar.HOUR, 24);
@@ -229,24 +287,43 @@ final public class ConnectionHandler implements Runnable {
         return String.format(headerLine, value);
     }
 
+    /*  Gets the contents of a file as bytes. Throws IOException if there
+        is an error opening the file
+    */
     private byte[] buildPayload(File resource) throws IOException {
         return Files.readAllBytes(resource.toPath());
     }
 
+    /*
+        Converts the requested resource to a relative path by prepending '.' and returns
+        the file found at the path which may or may not exist.
+     */
     private File getResource(String resource) {
         Path path = Paths.get("." + resource);
         return path.toFile();
     }
 
+    /*
+        Sends a string through the socket by passing to send(byte[]) the
+        bytes of the string
+     */
     private void send(String str) {
         System.out.printf("INFO: Sending String %n\"%s\" to socket.%n", str);
         send(str.getBytes());
     }
 
+    /*
+        Sends a message through the socket. This is achieved using a BufferedOutputStream
+     */
     private void send(byte[] bytes) {
         try {
             OUT.write(bytes);
             OUT.flush();
+        /*
+            Error: Could not send data or flush output channel
+            Resolution: Inform the user and move on. We can't send a message to the client
+            because something is wrong with output so we don't send INTERNAL_SERVER_ERROR
+         */
         } catch (IOException e) {
             System.out.printf("ERROR: Failed to write to write to output stream: %s%n", e.getMessage());
         }
@@ -256,25 +333,22 @@ final public class ConnectionHandler implements Runnable {
         Read a message from the input stream. Pieces it together line by line and trims any trailing
         white space that may mess with String.split()
      */
-    private String receive(int timeoutMS) {
+    private String receive(int timeoutMS) throws IOException {
         StringBuilder sb = new StringBuilder();
         String line;
         long start = System.currentTimeMillis();
         long end = start + timeoutMS;
-        try {
-            //Continually check if 5 seconds has passed while the buffered reader does not have any messages
-            while (!IN.ready()) {
-                if (System.currentTimeMillis() > end) {
-                    return null;
-                }
+        //Continually check if 5 seconds has passed while the buffered reader does not have any messages
+        while (!IN.ready()) {
+            if (System.currentTimeMillis() > end) {
+                return null;
             }
-            while (!(line = IN.readLine()).isEmpty()) {
-                System.out.printf("INFO: Read line from input: %n%n\"%s\"%n%n", line);
-                sb.append(line).append(System.lineSeparator());
-            }
-        } catch (IOException e) {
-            System.out.printf("NOTICE: Failed to read line from input stream. %s%n", e.getMessage());
         }
+        while (!(line = IN.readLine()).isEmpty()) {
+            System.out.printf("INFO: Read line from input: %n%n\"%s\"%n%n", line);
+            sb.append(line).append(System.lineSeparator());
+        }
+
         return sb.toString().trim();
     }
 
@@ -298,7 +372,7 @@ final public class ConnectionHandler implements Runnable {
                 Resolution: Warn user and move on.
             */
         } catch (Exception e) {
-            System.out.printf("ERROR: Failed to clean up connections for socket.%n%s", e.toString());
+            System.out.printf("ERROR: Failed to clean up connections for socket.%n%s", e.getMessage());
         }
     }
 

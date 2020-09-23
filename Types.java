@@ -55,7 +55,7 @@ final public class Types {
         JPEG("jpeg", "image", "jpeg"),
         PNG("png", "image", "png"),
         PDF("pdf", "application", "pdf"),
-        OCTETSTREAM(null, "application", "octet-stream");
+        OCTETSTREAM("", "application", "octet-stream");
 
         private final String extension;
         private final String type;
