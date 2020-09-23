@@ -346,7 +346,7 @@ final public class ConnectionHandler implements Runnable {
         }
         while (!(line = IN.readLine()).isEmpty()) {
             System.out.printf("INFO: Read line from input: %n%n\"%s\"%n%n", line);
-            sb.append(line).append(System.lineSeparator());
+            sb.append(line).append("\r\n");
         }
 
         return sb.toString().trim();
