@@ -1,5 +1,3 @@
-import java.util.Arrays;
-
 final public class Types {
     /*
         Defines the status codes which we implement in our http server. Response codes consist of
