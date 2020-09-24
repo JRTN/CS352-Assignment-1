@@ -56,10 +56,10 @@ final public class PartialHTTP1Server {
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>());
 
-        Socket SOCKET;
         //Server loop
         //noinspection InfiniteLoopStatement
         while (true) {
+            Socket SOCKET;
             try {
                 SOCKET = SERVER_SOCKET.accept();
 
