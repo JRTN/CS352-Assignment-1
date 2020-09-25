@@ -308,7 +308,7 @@ final public class ConnectionHandler implements Runnable {
         bytes of the string
      */
     private void send(String str) {
-        System.out.printf("INFO: Sending String %n\"%s\" to socket.%n", str.replace("\r\n", "[CRLF]\r\n"));
+        System.out.printf("INFO: Sending String to socket %n\"%s\"%n", str.replace("\r\n", "[CRLF]\r\n"));
         send(str.getBytes());
     }
 

@@ -100,8 +100,9 @@ final public class PartialHTTP1Server {
                 try {
                     //Write error 503 to the socket's output stream
                     BufferedWriter OUT = new BufferedWriter(new OutputStreamWriter(SOCKET.getOutputStream()));
-                    System.out.println("Sending 503 response");
-                    OUT.write(String.format("HTTP/1.0 %s\r\n", Types.StatusCode.SERVICE_UNAVAILABLE));
+                    String response = String.format("HTTP/1.0 %s\r\n", Types.StatusCode.SERVICE_UNAVAILABLE);
+                    System.out.printf("INFO: Sending response %n\"%s\"%n", response);
+                    OUT.write(response);
                     //Clean up connections
                     OUT.flush();
                     OUT.close();
