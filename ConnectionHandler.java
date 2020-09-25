@@ -158,7 +158,7 @@ final public class ConnectionHandler implements Runnable {
 
                 //If the command is HEAD, then we only send a header built based off of the resource
                 if (command.equals("HEAD")) {
-                    send(buildHeader(file, getConditionalDateString(null)));
+                    send(buildHeader(file, null));
                     return;
                 }
 
@@ -308,7 +308,7 @@ final public class ConnectionHandler implements Runnable {
         bytes of the string
      */
     private void send(String str) {
-        System.out.printf("INFO: Sending String %n\"%s\" to socket.%n", str);
+        System.out.printf("INFO: Sending String %n\"%s\" to socket.%n", str.replace("\r\n", "[CRLF]\r\n"));
         send(str.getBytes());
     }
 

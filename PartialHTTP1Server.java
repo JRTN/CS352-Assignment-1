@@ -1,11 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 final public class PartialHTTP1Server {
 
@@ -52,9 +48,30 @@ final public class PartialHTTP1Server {
                 4. Unit of time for #3 - Milliseconds or seconds, don't matter
                 5. The Work Queue - We just need any blocking queue so we'll use a linked queue
         */
-        ExecutorService threadPoolService = new ThreadPoolExecutor(5, 50, 1000,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>());
+        ExecutorService threadPoolService = new ThreadPoolExecutor(5, 50, 1000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(1)) {
+            int currentThreads = 0;
+
+            @Override
+            public void execute(Runnable r) throws RejectedExecutionException {
+                synchronized (this) {
+                    if(currentThreads >= getMaximumPoolSize()) {
+                        throw new RejectedExecutionException("Maximum thread count reached.");
+                    }
+
+                    currentThreads++;
+                }
+                super.execute(r);
+            }
+
+            @Override
+            protected void afterExecute(Runnable r, Throwable t) {
+                synchronized (this) {
+                    currentThreads--;
+                }
+                super.afterExecute(r, t);
+            }
+
+        };
 
         //Server loop
         //noinspection InfiniteLoopStatement
@@ -83,6 +100,7 @@ final public class PartialHTTP1Server {
                 try {
                     //Write error 503 to the socket's output stream
                     BufferedWriter OUT = new BufferedWriter(new OutputStreamWriter(SOCKET.getOutputStream()));
+                    System.out.println("Sending 503 response");
                     OUT.write(String.format("HTTP/1.0 %s\r\n", Types.StatusCode.SERVICE_UNAVAILABLE));
                     //Clean up connections
                     OUT.flush();
