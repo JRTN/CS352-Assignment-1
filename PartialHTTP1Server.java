@@ -48,7 +48,7 @@ final public class PartialHTTP1Server {
                 4. Unit of time for #3 - Milliseconds or seconds, don't matter
                 5. The Work Queue - We just need any blocking queue so we'll use a linked queue
         */
-        ExecutorService threadPoolService = new ThreadPoolExecutor(5, 50, 1000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(1)) {
+        ExecutorService threadPoolService = new ThreadPoolExecutor(5, 50, 1000, TimeUnit.MILLISECONDS, new SynchronousQueue<>()) {
             int currentThreads = 0;
 
             @Override
