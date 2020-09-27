@@ -350,7 +350,7 @@ final public class ConnectionHandler implements Runnable {
             sb.append(line).append("\r\n");
         }
 
-        return sb.toString().trim();
+        return sb.toString();
     }
 
     /*
