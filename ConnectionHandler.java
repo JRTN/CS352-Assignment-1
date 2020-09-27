@@ -250,6 +250,7 @@ final public class ConnectionHandler implements Runnable {
                 }
                 Types.MIME mime = Types.MIME.get(extension);
                 value = mime.toString();
+                //value = URLConnection.getFileNameMap().getContentTypeFor(file.getName()) //Possibly use this in the future. Need to check that extension != ""
                 break;
 
             case ContentLength:
@@ -334,8 +335,6 @@ final public class ConnectionHandler implements Runnable {
         white space that may mess with String.split()
      */
     private String receive(int timeoutMS) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        String line;
         long start = System.currentTimeMillis();
         long end = start + timeoutMS;
         //Continually check if 5 seconds has passed while the buffered reader does not have any messages
@@ -344,7 +343,9 @@ final public class ConnectionHandler implements Runnable {
                 return null;
             }
         }
-        while (!(line = IN.readLine()).isEmpty()) {
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while((line = IN.readLine()) != null && !line.isEmpty()) {
             System.out.printf("INFO: Read line from input: %n%n\"%s\"%n%n", line);
             sb.append(line).append("\r\n");
         }
