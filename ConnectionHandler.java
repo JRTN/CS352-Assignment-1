@@ -274,10 +274,10 @@ final public class ConnectionHandler implements Runnable {
                 break;
 
             case Expires:
-                //Currently we set packets to expire in 24 hours.
+                //Currently we set packets to expire in 1 year
                 Calendar c = Calendar.getInstance();
                 c.setTime(new Date());
-                c.add(Calendar.HOUR, 24);
+                c.add(Calendar.YEAR, 1);
                 Date expires = c.getTime();
                 value = formatDate(expires);
                 break;
