@@ -156,6 +156,11 @@ final public class ConnectionHandler implements Runnable {
                     return;
                 }
 
+                if(file.isDirectory()) {
+                    send(buildStatusLine(Types.StatusCode.FORBIDDEN));
+                    return;
+                }
+
                 //If the command is HEAD, then we only send a header built based off of the resource
                 if (command.equals("HEAD")) {
                     send(buildHeader(file, null));
