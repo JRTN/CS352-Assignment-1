@@ -148,6 +148,8 @@ final public class ConnectionHandler implements Runnable {
             //IMPLEMENTED COMMANDS
             case "GET":
             case "POST":
+                    //TODO: Implement POST
+                return;
             case "HEAD":
 
                 File file = getResource(resource);

@@ -101,7 +101,9 @@ final public class Types {
         LastModified("Last-Modified"),
         ContentEncoding("Content-Encoding"),
         Allow("Allow"),
-        Expires("Expires");
+        Expires("Expires"),
+        From("From"),
+        UserAgent("User-Agent");
 
         public String fieldName;
 
@@ -112,6 +114,36 @@ final public class Types {
         @Override
         public String toString() {
             return fieldName;
+        }
+    }
+
+    enum EnvironmentVariable {
+
+        ContentLength("CONTENT_LENGTH"),
+        ScriptName("SCRIPT_NAME"),
+        ServerName("SERVER_NAME"),
+        ServerPort("SERVER_PORT"),
+        HTTPFrom("HTTP_FROM"),
+        HTTPUserAgent("HTTP_USER_AGENT");
+
+        public String variableName;
+
+        EnvironmentVariable(String name) {
+            variableName = name;
+        }
+
+        public static EnvironmentVariable get(String variable) {
+            for (EnvironmentVariable environmentVariable : EnvironmentVariable.values()) {
+                if(environmentVariable.variableName.equals(variable)) {
+                    return environmentVariable;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public String toString() {
+            return variableName;
         }
     }
 }
