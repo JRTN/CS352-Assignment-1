@@ -9,11 +9,13 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.LinkedList;
+import java.util.Map;
 import java.util.TimeZone;
 
 final public class ConnectionHandler implements Runnable {
 
-    //Currently only support HTTP 1.0
+    // Currently only support HTTP 1.0
     private final String HTTP_SUPPORTED_VERSION = "HTTP/1.0";
 
     private final Socket SOCKET;
@@ -21,26 +23,26 @@ final public class ConnectionHandler implements Runnable {
     private final BufferedOutputStream OUT;
     private final SimpleDateFormat dateFormatter;
 
-
     public ConnectionHandler(Socket socket) throws InstantiationException {
         SOCKET = socket;
-            /*
-                Create input and output streams for the socket.
-            */
+        /*
+         * Create input and output streams for the socket.
+         */
         try {
             IN = new BufferedInputStream(SOCKET.getInputStream());
             OUT = new BufferedOutputStream(SOCKET.getOutputStream());
 
             /*
-                Error: Failed to create input or output stream for the socket
-                Resolution: Inform the user, close any connections that may have been successful, and then throw an exception
-            */
+             * Error: Failed to create input or output stream for the socket Resolution:
+             * Inform the user, close any connections that may have been successful, and
+             * then throw an exception
+             */
         } catch (IOException e) {
             System.out.printf("ERROR: Failed to create IO streams for socket %s.%n%s", SOCKET.toString(), e.toString());
             close();
             throw new InstantiationException("Failed to create IO streams.");
         }
-        //Form of: Sun, 20 Sep 2020 04:49:17 GMT
+        // Form of: Sun, 20 Sep 2020 04:49:17 GMT
         String HTTP_DATETIME_FORMAT = "E, dd MMM yyyy HH:mm:ss z";
         dateFormatter = new SimpleDateFormat(HTTP_DATETIME_FORMAT);
         String HTTP_DATETIME_ZONE = "GMT";
@@ -49,7 +51,7 @@ final public class ConnectionHandler implements Runnable {
 
     @Override
     public void run() {
-        //The time we want to wait for a request
+        // The time we want to wait for a request
         int REQUEST_TIMEOUT_MS = 5000;
         String message;
         try {
@@ -75,9 +77,9 @@ final public class ConnectionHandler implements Runnable {
     }
 
     /*
-        Finds the conditional string in the request header lines and extracts it.
-        Currently only expects one line, but can be expanded if later more complicated
-        headers are given
+     * Finds the conditional string in the request header lines and extracts it.
+     * Currently only expects one line, but can be expanded if later more
+     * complicated headers are given
      */
     private String getConditionalDateString(String headerLines) {
         if (headerLines == null || headerLines.startsWith("If-Modified-Since: ")) {
@@ -87,9 +89,9 @@ final public class ConnectionHandler implements Runnable {
     }
 
     /*
-        Attempts to parse a date from a string using our SimpleDateFormatter. If the date we try
-        to parse is invalid, then it will be set to the first Date available. Meaning, it is
-        always before all other dates.
+     * Attempts to parse a date from a string using our SimpleDateFormatter. If the
+     * date we try to parse is invalid, then it will be set to the first Date
+     * available. Meaning, it is always before all other dates.
      */
     private Date parseDate(String dateString) {
         try {
@@ -100,27 +102,27 @@ final public class ConnectionHandler implements Runnable {
     }
 
     /*
-        Formats a Date using our SimpleDateFormatter
+     * Formats a Date using our SimpleDateFormatter
      */
     private String formatDate(Date date) {
         return dateFormatter.format(date);
     }
 
     /*
-        Passes appropriate information to the build methods and then collects the output.
-        Compiles the message and sends it via the output methods.
+     * Passes appropriate information to the build methods and then collects the
+     * output. Compiles the message and sends it via the output methods.
      */
     private void sendResponse(String[] lines) {
         System.out.printf("Sending Response for lines: %s\n", Arrays.toString(lines));
-        if(lines.length < 1) {
+        if (lines.length < 1) {
             send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
         }
 
         String[] requestTokens = lines[0].split(" ");
 
-            /*
-                If there aren't 3 tokens in the first line, it's a bad request
-            */
+        /*
+         * If there aren't 3 tokens in the first line, it's a bad request
+         */
         if (requestTokens.length != 3) {
             send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
             close();
@@ -131,9 +133,9 @@ final public class ConnectionHandler implements Runnable {
         String resource = requestTokens[1];
         String version = requestTokens[2];
 
-            /*
-                If the HTML version is not 1.0, then it's not supported
-            */
+        /*
+         * If the HTML version is not 1.0, then it's not supported
+         */
         if (!version.equals(HTTP_SUPPORTED_VERSION)) {
             send(buildStatusLine(Types.StatusCode.HTTP_VERSION_NOT_SUPPORTED));
             close();
@@ -142,16 +144,16 @@ final public class ConnectionHandler implements Runnable {
 
         System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
         switch (command.trim()) {
-            //UNIMPLEMENTED COMMANDS
+            // UNIMPLEMENTED COMMANDS
             case "PUT":
             case "DELETE":
             case "LINK":
             case "UNLINK":
                 send(buildStatusLine(Types.StatusCode.NOT_IMPLEMENTED));
                 return;
-            //IMPLEMENTED COMMANDS
+            // IMPLEMENTED COMMANDS
             case "POST":
-                    //TODO: Implement POST
+                // TODO: Implement POST
 
                 String from = null;
                 String userAgent = null;
@@ -159,23 +161,23 @@ final public class ConnectionHandler implements Runnable {
                 int contentLength = -1;
                 ArgumentDecoder argumentDecoder = null;
 
-                //Extract information from lines
-                for(String line : lines) {
-                    line = line.trim(); //Get rid of the trailing \r\n
-                    if(line.startsWith("From: ")) {
+                // Extract information from lines
+                for (String line : lines) {
+                    line = line.trim(); // Get rid of the trailing \r\n
+                    if (line.startsWith("From: ")) {
                         from = line.substring("From :".length());
-                    } else if(line.startsWith("User-Agent: ")) {
+                    } else if (line.startsWith("User-Agent: ")) {
                         userAgent = line.substring("User-Agent: ".length());
-                    } else if(line.startsWith("Content-Length: ")) {
+                    } else if (line.startsWith("Content-Length: ")) {
                         String value = line.substring("Content-Length: ".length());
                         try {
                             contentLength = Integer.parseInt(value);
-                        } catch(NumberFormatException e) {
+                        } catch (NumberFormatException e) {
                             send(buildStatusLine(Types.StatusCode.LENGTH_REQUIRED));
                         }
-                    } else if(line.startsWith("Content-Type: ")) {
+                    } else if (line.startsWith("Content-Type: ")) {
                         contentType = line.substring("Content-Type: ".length());
-                    } else if(!line.isEmpty()) { //Payload line
+                    } else if (!line.isEmpty()) { // Payload line
                         argumentDecoder = new ArgumentDecoder(line);
                     }
                 }
@@ -185,27 +187,70 @@ final public class ConnectionHandler implements Runnable {
                 System.out.println("\tUser Agent: " + userAgent);
                 System.out.println("\tContent Type: " + contentType);
                 System.out.println("\tContent Length: " + contentLength);
-                if(argumentDecoder != null) {
+                if (argumentDecoder != null) {
                     System.out.println("\tArguments: " + argumentDecoder.toString());
                 } else {
                     System.out.println("\tArguments: " + "None");
                 }
 
-
-                //If the lines don't include content length
-                if(contentLength < 0) {
+                // If the lines don't include content length
+                if (contentLength < 0) {
                     send(buildStatusLine(Types.StatusCode.LENGTH_REQUIRED));
                     return;
                 }
-                //If the lines don't include content type
-                if(contentType == null) {
+                // If the lines don't include content type
+                if (contentType == null) {
                     send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
                     return;
                 }
-                //If the requested resource is not a cgi script
-                if(!resource.endsWith(".cgi")) {
+                // If the requested resource is not a cgi script
+                if (!resource.endsWith(".cgi")) {
                     send(buildStatusLine(Types.StatusCode.METHOD_NOT_ALLOWED));
                 }
+
+                LinkedList<String> args = new LinkedList<>();
+                LinkedList<String> vars = (LinkedList<String>) argumentDecoder.getVariables();
+
+                for (String var : vars) {
+                    args.add(var + "=" + argumentDecoder.getValue(var));
+                }
+
+                String argString = String.join(" ", args);
+                ProcessBuilder builder = new ProcessBuilder("." + resource, argString);
+                Map<String, String> environment = builder.environment();
+                environment.put("CONTENT_LENGTH", "" + contentLength);
+                environment.put("SCRIPT_NAME", resource);
+                environment.put("SERVER_NAME", "localhost");
+                environment.put("PORT", "" + SOCKET.getPort());
+                if (from != null) {
+                    environment.put("HTTP_FROM", from);
+                }
+                if (userAgent != null) {
+                    environment.put("HTTP_USER_AGENT", userAgent);
+                }
+
+                Process process;
+                try {
+                    process = builder.start();
+
+                } catch (IOException e1) {
+                    System.out.printf("INFO: Failed to run process and capture output: %s\n", e1.getMessage());
+                    send(buildStatusLine(Types.StatusCode.METHOD_NOT_ALLOWED));
+                    return;
+                }
+
+                BufferedInputStream process_stream = new BufferedInputStream(process.getInputStream());
+
+                String output;
+                try {
+                    byte[] res = process_stream.readAllBytes();
+                    output = new String(res);
+                    process_stream.close();
+                    System.out.printf("INFO: Read input from process %s: %s", resource, output.toString());
+                } catch (IOException e1) {
+                    System.out.printf("INFO: Failed to read input from process: %s\n", e1.getMessage());
+                }
+                
 
                 return;
             case "GET":
