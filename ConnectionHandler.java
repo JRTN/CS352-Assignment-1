@@ -241,7 +241,7 @@ final public class ConnectionHandler implements Runnable {
                 try {
                     String line;
                     while((line = process_output.readLine()) != null) {
-                        output.append(line);
+                        output.append(line).append("\n");
                     }
                     process_output.close();
                     System.out.printf("INFO: Read input from process %s: %s\n", resource, output.toString());
@@ -249,6 +249,8 @@ final public class ConnectionHandler implements Runnable {
                     System.out.printf("INFO: Failed to read input from process: %s\n", e1.getMessage());
                 }
                 
+                send(buildPostHeader(output.toString()));
+                send(output.toString());
 
                 return;
             case "GET":
@@ -308,9 +310,17 @@ final public class ConnectionHandler implements Runnable {
         return String.format("%s %d %s\r\n", HTTP_SUPPORTED_VERSION, statusCode.getCode(), statusCode.getMessage());
     }
 
-    private String buildPostHeader() {
+    private String buildPostHeader(String payload) {
 
-        return "";
+        if(payload.isEmpty() || payload.isBlank()) {
+            return buildStatusLine(Types.StatusCode.NO_CONTENT);
+        }
+
+        return buildStatusLine(Types.StatusCode.OK) + 
+                buildHeaderLine(Types.HeaderField.ContentLength, payload) + 
+                buildHeaderLine(Types.HeaderField.ContentType, payload) +
+                buildHeaderLine(Types.HeaderField.Allow, payload) + 
+                buildHeaderLine(Types.HeaderField.Expires, payload);
     }
 
     /*
@@ -341,6 +351,39 @@ final public class ConnectionHandler implements Runnable {
                 buildHeaderLine(Types.HeaderField.Allow, file) +
                 buildHeaderLine(Types.HeaderField.Expires, file) +
                 "\r\n";
+    }
+
+    public String buildHeaderLine(Types.HeaderField field, String payload) {
+        String headerLine = field.toString() + ": %s\r\n";
+        String value;
+        switch (field) {
+            case ContentType:
+                value = "text/html";
+                break;
+
+            case ContentLength:
+                int contentLength = payload.length();
+                value = "" + contentLength;
+                break;
+
+            case Allow:
+                //Return the allowed HTTP request types
+                value = "GET, HEAD, POST";
+                break;
+
+            case Expires:
+                //Currently we set packets to expire in 1 year
+                Calendar c = Calendar.getInstance();
+                c.setTime(new Date());
+                c.add(Calendar.YEAR, 1);
+                Date expires = c.getTime();
+                value = formatDate(expires);
+                break;
+
+            default:
+                return "";
+        }
+        return String.format(headerLine, value);
     }
 
 
