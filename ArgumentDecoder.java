@@ -9,16 +9,16 @@ public class ArgumentDecoder {
         extractArguments(argumentString);
     }
 
-    public String cleanArgument(String argument) {
+    private String cleanArgument(String argument) {
         //Find and replace escaped characters with their unescaped counterpart
         String pattern = "(\\!)([\\!\\*'\\(\\);:@&\\+,/\\?#\\[\\]\\s])";
 
         return argument.replaceAll(pattern, "$2");
     }
 
-    public void extractArguments(String argumentString) {
+    private void extractArguments(String argumentString) {
         //Split arguments on & signs not preceeded by a !
-        String[] arguments = argumentString.split("(?<!\\!)&");
+        String[] arguments = argumentString.split("(?<!([^!]\\!))&");
         for(String argument : arguments) {
             //Split variable names from their value
             String[] parts = argument.split("=");
