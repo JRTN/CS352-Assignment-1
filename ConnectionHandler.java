@@ -209,7 +209,7 @@ final public class ConnectionHandler implements Runnable {
                 //Set environment variables as necessary
                 environment.put("CONTENT_LENGTH", "" + contentLength);
                 environment.put("SCRIPT_NAME", resource);
-                environment.put("SERVER_NAME", "localhost");
+                environment.put("SERVER_NAME", SOCKET.getLocalAddress().getHostAddress());
                 environment.put("PORT", "" + SOCKET.getPort());
                 if (from != null) {
                     environment.put("HTTP_FROM", from);
