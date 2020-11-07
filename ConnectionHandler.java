@@ -67,35 +67,8 @@ final public class ConnectionHandler implements Runnable {
         }
 
         String[] lines = message.split("\r\n");
-        String[] requestTokens = lines[0].split(" ");
 
-            /*
-                If there aren't 3 tokens in the first line, it's a bad request
-            */
-        if (requestTokens.length != 3) {
-            send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
-            close();
-            return;
-        }
-
-        String command = requestTokens[0];
-        String resource = requestTokens[1];
-        String version = requestTokens[2];
-
-            /*
-                If the HTML version is not 1.0, then it's not supported
-            */
-        if (!version.equals(HTTP_SUPPORTED_VERSION)) {
-            send(buildStatusLine(Types.StatusCode.HTTP_VERSION_NOT_SUPPORTED));
-            close();
-            return;
-        }
-
-        String headerLines = null;
-        if (lines.length > 1) {
-            headerLines = lines[1];
-        }
-        sendResponse(command, resource, headerLines);
+        sendResponse(lines);
         close();
     }
 
@@ -105,7 +78,7 @@ final public class ConnectionHandler implements Runnable {
         headers are given
      */
     private String getConditionalDateString(String headerLines) {
-        if (headerLines == null) {
+        if (headerLines == null || headerLines.startsWith("If-Modified-Since: ")) {
             return null;
         }
         return headerLines.substring("If-Modified-Since: ".length());
@@ -135,7 +108,35 @@ final public class ConnectionHandler implements Runnable {
         Passes appropriate information to the build methods and then collects the output.
         Compiles the message and sends it via the output methods.
      */
-    private void sendResponse(String command, String resource, String conditionalLine) {
+    private void sendResponse(String[] lines) {
+        if(lines.length < 1) {
+            send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
+        }
+
+        String[] requestTokens = lines[0].split(" ");
+
+            /*
+                If there aren't 3 tokens in the first line, it's a bad request
+            */
+        if (requestTokens.length != 3) {
+            send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
+            close();
+            return;
+        }
+
+        String command = requestTokens[0];
+        String resource = requestTokens[1];
+        String version = requestTokens[2];
+
+            /*
+                If the HTML version is not 1.0, then it's not supported
+            */
+        if (!version.equals(HTTP_SUPPORTED_VERSION)) {
+            send(buildStatusLine(Types.StatusCode.HTTP_VERSION_NOT_SUPPORTED));
+            close();
+            return;
+        }
+
         System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
         switch (command.trim()) {
             //UNIMPLEMENTED COMMANDS
@@ -146,12 +147,11 @@ final public class ConnectionHandler implements Runnable {
                 send(buildStatusLine(Types.StatusCode.NOT_IMPLEMENTED));
                 return;
             //IMPLEMENTED COMMANDS
-            case "GET":
             case "POST":
                     //TODO: Implement POST
                 return;
+            case "GET":
             case "HEAD":
-
                 File file = getResource(resource);
                 if (!file.exists()) {
                     send(buildStatusLine(Types.StatusCode.NOT_FOUND));
@@ -163,7 +163,6 @@ final public class ConnectionHandler implements Runnable {
                     return;
                 }
 
-                //If the command is HEAD, then we only send a header built based off of the resource
                 if (command.equals("HEAD")) {
                     send(buildHeader(file, null));
                     return;
@@ -182,6 +181,12 @@ final public class ConnectionHandler implements Runnable {
                 } catch (IOException e) {
                     send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
                     return;
+                }
+
+                String conditionalLine = null;
+
+                if(lines.length > 1) {
+                    conditionalLine = lines[1];
                 }
 
                 //For GET and POST, send both the header and payload
