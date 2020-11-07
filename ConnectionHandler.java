@@ -81,7 +81,7 @@ final public class ConnectionHandler implements Runnable {
      * complicated headers are given
      */
     private String getConditionalDateString(String headerLines) {
-        if (headerLines == null || headerLines.startsWith("If-Modified-Since: ")) {
+        if (headerLines == null || !headerLines.startsWith("If-Modified-Since: ")) {
             return null;
         }
         return headerLines.substring("If-Modified-Since: ".length());
@@ -340,14 +340,16 @@ final public class ConnectionHandler implements Runnable {
             Date conditionalDate = parseDate(conditionalDateString);
             Date lastModified = new Date(file.lastModified());
             
-
+            System.out.println("Comparing dates:");
+            System.out.printf("\t[%s] to [%s]", dateFormatter.format(lastModified), dateFormatter.format(conditionalDate));
             //We send NOT_MODIFIED if the file was last modified before the conditional date
             if (lastModified.getTime() < conditionalDate.getTime()) {
+                System.out.println("Sending 304 Not Modified.");
                 return buildStatusLine(Types.StatusCode.NOT_MODIFIED) +
                         buildHeaderLine(Types.HeaderField.Expires, file);
             }
         }
-
+        System.out.println("Sending 200 OK");
         //Call builder methods with the appropriate fields and OK status as all other checks
         //have passed and this is a valid request
         return buildStatusLine(Types.StatusCode.OK) +
