@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.TimeZone;
@@ -16,7 +17,7 @@ final public class ConnectionHandler implements Runnable {
     private final String HTTP_SUPPORTED_VERSION = "HTTP/1.0";
 
     private final Socket SOCKET;
-    private final BufferedReader IN;
+    private final BufferedInputStream IN;
     private final BufferedOutputStream OUT;
     private final SimpleDateFormat dateFormatter;
 
@@ -27,7 +28,7 @@ final public class ConnectionHandler implements Runnable {
                 Create input and output streams for the socket.
             */
         try {
-            IN = new BufferedReader(new InputStreamReader(SOCKET.getInputStream()));
+            IN = new BufferedInputStream(SOCKET.getInputStream());
             OUT = new BufferedOutputStream(SOCKET.getOutputStream());
 
             /*
@@ -53,6 +54,7 @@ final public class ConnectionHandler implements Runnable {
         String message;
         try {
             message = receive(REQUEST_TIMEOUT_MS);
+            System.out.println("Received message:\n" + message);
         } catch (IOException e) {
             System.out.printf("ERROR: Failed to read input from socket. %s%n", e.getMessage());
             send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
@@ -109,6 +111,7 @@ final public class ConnectionHandler implements Runnable {
         Compiles the message and sends it via the output methods.
      */
     private void sendResponse(String[] lines) {
+        System.out.printf("Sending Response for lines: %s\n", Arrays.toString(lines));
         if(lines.length < 1) {
             send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
         }
@@ -149,6 +152,61 @@ final public class ConnectionHandler implements Runnable {
             //IMPLEMENTED COMMANDS
             case "POST":
                     //TODO: Implement POST
+
+                String from = null;
+                String userAgent = null;
+                String contentType = null;
+                int contentLength = -1;
+                ArgumentDecoder argumentDecoder = null;
+
+                //Extract information from lines
+                for(String line : lines) {
+                    line = line.trim(); //Get rid of the trailing \r\n
+                    if(line.startsWith("From: ")) {
+                        from = line.substring("From :".length());
+                    } else if(line.startsWith("User-Agent: ")) {
+                        userAgent = line.substring("User-Agent: ".length());
+                    } else if(line.startsWith("Content-Length: ")) {
+                        String value = line.substring("Content-Length: ".length());
+                        try {
+                            contentLength = Integer.parseInt(value);
+                        } catch(NumberFormatException e) {
+                            send(buildStatusLine(Types.StatusCode.LENGTH_REQUIRED));
+                        }
+                    } else if(line.startsWith("Content-Type: ")) {
+                        contentType = line.substring("Content-Type: ".length());
+                    } else if(!line.isEmpty()) { //Payload line
+                        argumentDecoder = new ArgumentDecoder(line);
+                    }
+                }
+
+                System.out.println("Extracted information for post request: ");
+                System.out.println("\tFrom: " + from);
+                System.out.println("\tUser Agent: " + userAgent);
+                System.out.println("\tContent Type: " + contentType);
+                System.out.println("\tContent Length: " + contentLength);
+                if(argumentDecoder != null) {
+                    System.out.println("\tArguments: " + argumentDecoder.toString());
+                } else {
+                    System.out.println("\tArguments: " + "None");
+                }
+
+
+                //If the lines don't include content length
+                if(contentLength < 0) {
+                    send(buildStatusLine(Types.StatusCode.LENGTH_REQUIRED));
+                    return;
+                }
+                //If the lines don't include content type
+                if(contentType == null) {
+                    send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
+                    return;
+                }
+                //If the requested resource is not a cgi script
+                if(!resource.endsWith(".cgi")) {
+                    send(buildStatusLine(Types.StatusCode.METHOD_NOT_ALLOWED));
+                }
+
                 return;
             case "GET":
             case "HEAD":
@@ -164,7 +222,7 @@ final public class ConnectionHandler implements Runnable {
                 }
 
                 if (command.equals("HEAD")) {
-                    send(buildHeader(file, null));
+                    send(buildHeadGetHeader(file, null));
                     return;
                 }
 
@@ -190,7 +248,7 @@ final public class ConnectionHandler implements Runnable {
                 }
 
                 //For GET and POST, send both the header and payload
-                send(buildHeader(file, getConditionalDateString(conditionalLine)));
+                send(buildHeadGetHeader(file, getConditionalDateString(conditionalLine)));
                 send(payload);
                 return;
             default:
@@ -207,11 +265,16 @@ final public class ConnectionHandler implements Runnable {
         return String.format("%s %d %s\r\n", HTTP_SUPPORTED_VERSION, statusCode.getCode(), statusCode.getMessage());
     }
 
+    private String buildPostHeader() {
+
+        return "";
+    }
+
     /*
         Builds and formats a header for a given resource and header lines. Currently only
         expects one line (the conditional header line) as a second argument.
      */
-    private String buildHeader(File file, String conditionalDateString) {
+    private String buildHeadGetHeader(File file, String conditionalDateString) {
         //If there is a conditional String, then we need to check the last modified date
         //of the file against the current date
         if (conditionalDateString != null) {
@@ -347,19 +410,11 @@ final public class ConnectionHandler implements Runnable {
         white space that may mess with String.split()
      */
     private String receive(int timeoutMS) throws IOException {
-        long start = System.currentTimeMillis();
-        long end = start + timeoutMS;
-        //Continually check if 5 seconds has passed while the buffered reader does not have any messages
-        while (!IN.ready()) {
-            if (System.currentTimeMillis() > end) {
-                return null;
-            }
-        }
         StringBuilder sb = new StringBuilder();
-        String line;
-        while((line = IN.readLine()) != null && !line.isEmpty()) {
-            System.out.printf("INFO: Read line from input: %n%n\"%s\"%n%n", line);
-            sb.append(line).append("\r\n");
+
+        while(IN.available() > 0) {
+            char c = (char) IN.read();
+            sb.append(c);
         }
 
         return sb.toString();
