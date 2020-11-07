@@ -159,7 +159,7 @@ final public class ConnectionHandler implements Runnable {
                 String userAgent = null;
                 String contentType = null;
                 int contentLength = -1;
-                ArgumentDecoder argumentDecoder = null;
+                String argumentString = null;
 
                 // Extract information from lines
                 for (String line : lines) {
@@ -178,7 +178,7 @@ final public class ConnectionHandler implements Runnable {
                     } else if (line.startsWith("Content-Type: ")) {
                         contentType = line.substring("Content-Type: ".length());
                     } else if (!line.isEmpty()) { // Payload line
-                        argumentDecoder = new ArgumentDecoder(line);
+                        argumentString = new ArgumentDecoder(line).toString();
                     }
                 }
 
@@ -187,11 +187,8 @@ final public class ConnectionHandler implements Runnable {
                 System.out.println("\tUser Agent: " + userAgent);
                 System.out.println("\tContent Type: " + contentType);
                 System.out.println("\tContent Length: " + contentLength);
-                if (argumentDecoder != null) {
-                    System.out.println("\tArguments: " + argumentDecoder.toString());
-                } else {
-                    System.out.println("\tArguments: " + "None");
-                }
+                System.out.println("\tArguments: " + argumentString);
+                
 
                 // If the lines don't include content length
                 if (contentLength < 0) {
@@ -208,15 +205,7 @@ final public class ConnectionHandler implements Runnable {
                     send(buildStatusLine(Types.StatusCode.METHOD_NOT_ALLOWED));
                 }
 
-                LinkedList<String> args = new LinkedList<>();
-                LinkedList<String> vars = (LinkedList<String>) argumentDecoder.getVariables();
-
-                for (String var : vars) {
-                    args.add(var + "=" + argumentDecoder.getValue(var));
-                }
-
-                String argString = String.join(" ", args);
-                ProcessBuilder builder = new ProcessBuilder("." + resource, argString);
+                ProcessBuilder builder = new ProcessBuilder("." + resource);
                 Map<String, String> environment = builder.environment();
                 environment.put("CONTENT_LENGTH", "" + contentLength);
                 environment.put("SCRIPT_NAME", resource);
@@ -235,18 +224,26 @@ final public class ConnectionHandler implements Runnable {
 
                 } catch (IOException e1) {
                     System.out.printf("INFO: Failed to run process and capture output: %s\n", e1.getMessage());
-                    send(buildStatusLine(Types.StatusCode.METHOD_NOT_ALLOWED));
+                    send(buildStatusLine(Types.StatusCode.FORBIDDEN));
                     return;
                 }
 
-                BufferedInputStream process_stream = new BufferedInputStream(process.getInputStream());
+                BufferedReader process_output = new BufferedReader(new InputStreamReader(process.getInputStream()));
 
-                String output;
                 try {
-                    byte[] res = process_stream.readAllBytes();
-                    output = new String(res);
-                    process_stream.close();
-                    System.out.printf("INFO: Read input from process %s: %s", resource, output.toString());
+                    process.getOutputStream().write(argumentString.getBytes());
+                } catch (IOException e2) {
+                    System.out.printf("INFO: Failed to write output to process %s: %s\n", resource, e2.getMessage());
+                }
+
+                StringBuilder output = new StringBuilder();
+                try {
+                    String line;
+                    while((line = process_output.readLine()) != null) {
+                        output.append(line);
+                    }
+                    process_output.close();
+                    System.out.printf("INFO: Read input from process %s: %s\n", resource, output.toString());
                 } catch (IOException e1) {
                     System.out.printf("INFO: Failed to read input from process: %s\n", e1.getMessage());
                 }

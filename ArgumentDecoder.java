@@ -2,14 +2,14 @@ import java.util.*;
 
 public class ArgumentDecoder {
 
-    private final HashMap<String, String> argumentsMap;
+    private final TreeMap<String, String> argumentsMap;
 
     public ArgumentDecoder(String argumentString) {
-        argumentsMap = new HashMap<>();
+        argumentsMap = new TreeMap<>();
         extractArguments(argumentString);
     }
 
-    private String cleanArgument(String argument) {
+    public String cleanArgument(String argument) {
         //Find and replace escaped characters with their unescaped counterpart
         String pattern = "(\\!)([\\!\\*'\\(\\);:@&\\+,/\\?#\\[\\]\\s])";
 
@@ -42,6 +42,17 @@ public class ArgumentDecoder {
 
     @Override
     public String toString() {
-        return Collections.singletonList(argumentsMap).toString();
+        Iterator<String> iter = argumentsMap.keySet().iterator();
+
+        StringBuilder builder = new StringBuilder();
+        while(iter.hasNext()) {
+            String key = iter.next();
+            builder.append(key).append("=").append(argumentsMap.get(key));
+            if(iter.hasNext()) {
+                builder.append("&");
+            }
+        }
+
+        return builder.toString();
     }
 }
