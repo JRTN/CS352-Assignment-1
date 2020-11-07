@@ -9,7 +9,6 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.LinkedList;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -207,6 +206,7 @@ final public class ConnectionHandler implements Runnable {
 
                 ProcessBuilder builder = new ProcessBuilder("." + resource);
                 Map<String, String> environment = builder.environment();
+                //Set environment variables as necessary
                 environment.put("CONTENT_LENGTH", "" + contentLength);
                 environment.put("SCRIPT_NAME", resource);
                 environment.put("SERVER_NAME", "localhost");
@@ -235,6 +235,8 @@ final public class ConnectionHandler implements Runnable {
                     process.getOutputStream().close();
                 } catch (IOException e2) {
                     System.out.printf("INFO: Failed to write output to process %s: %s\n", resource, e2.getMessage());
+                    send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
+                    return;
                 }
 
                 StringBuilder output = new StringBuilder();
@@ -247,8 +249,11 @@ final public class ConnectionHandler implements Runnable {
                     System.out.printf("INFO: Read input from process %s: %s\n", resource, output.toString());
                 } catch (IOException e1) {
                     System.out.printf("INFO: Failed to read input from process: %s\n", e1.getMessage());
+                    send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
+                    return;
                 }
                 
+                //Send header and payload
                 send(buildPostHeader(output.toString()));
                 send(output.toString());
 
@@ -334,9 +339,10 @@ final public class ConnectionHandler implements Runnable {
         if (conditionalDateString != null) {
             Date conditionalDate = parseDate(conditionalDateString);
             Date lastModified = new Date(file.lastModified());
+            
 
             //We send NOT_MODIFIED if the file was last modified before the conditional date
-            if (lastModified.before(conditionalDate)) {
+            if (lastModified.getTime() < conditionalDate.getTime()) {
                 return buildStatusLine(Types.StatusCode.NOT_MODIFIED) +
                         buildHeaderLine(Types.HeaderField.Expires, file);
             }
@@ -412,7 +418,6 @@ final public class ConnectionHandler implements Runnable {
                 }
                 Types.MIME mime = Types.MIME.get(extension);
                 value = mime.toString();
-                //value = URLConnection.getFileNameMap().getContentTypeFor(file.getName()) //Possibly use this in the future. Need to check that extension != ""
                 break;
 
             case ContentLength:
@@ -498,6 +503,15 @@ final public class ConnectionHandler implements Runnable {
      */
     private String receive(int timeoutMS) throws IOException {
         StringBuilder sb = new StringBuilder();
+
+        long start = System.currentTimeMillis();
+        long end = start + timeoutMS;
+        //Continually check if 5 seconds has passed while the buffered reader does not have any messages
+        while (IN.available() <= 0) {
+            if (System.currentTimeMillis() > end) {
+                return null;
+            }
+        }
 
         while(IN.available() > 0) {
             char c = (char) IN.read();
