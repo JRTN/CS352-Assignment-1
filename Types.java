@@ -5,11 +5,14 @@ final public class Types {
      */
     enum StatusCode {
         OK(200, "OK"),
+        NO_CONTENT(204, "No Content"),
         NOT_MODIFIED(304, "Not Modified"),
         BAD_REQUEST(400, "Bad Request"),
         FORBIDDEN(403, "Forbidden"),
         NOT_FOUND(404, "Not Found"),
+        METHOD_NOT_ALLOWED(405, "Method Not Allowed"),
         REQUEST_TIMEOUT(408, "Request Timeout"),
+        LENGTH_REQUIRED(411, "Length Required"),
         INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
         NOT_IMPLEMENTED(501, "Not Implemented"),
         SERVICE_UNAVAILABLE(503, "Service Unavailable"),
@@ -114,36 +117,6 @@ final public class Types {
         @Override
         public String toString() {
             return fieldName;
-        }
-    }
-
-    enum EnvironmentVariable {
-
-        ContentLength("CONTENT_LENGTH"),
-        ScriptName("SCRIPT_NAME"),
-        ServerName("SERVER_NAME"),
-        ServerPort("SERVER_PORT"),
-        HTTPFrom("HTTP_FROM"),
-        HTTPUserAgent("HTTP_USER_AGENT");
-
-        public String variableName;
-
-        EnvironmentVariable(String name) {
-            variableName = name;
-        }
-
-        public static EnvironmentVariable get(String variable) {
-            for (EnvironmentVariable environmentVariable : EnvironmentVariable.values()) {
-                if(environmentVariable.variableName.equals(variable)) {
-                    return environmentVariable;
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public String toString() {
-            return variableName;
         }
     }
 }

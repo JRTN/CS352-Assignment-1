@@ -17,7 +17,8 @@ public class ArgumentDecoder {
     }
 
     private void extractArguments(String argumentString) {
-        //Split arguments on & signs not preceeded by a !
+        //Split arguments on & signs not preceded by a ! but do split on those
+        //preceded by a !! (escaped !)
         String[] arguments = argumentString.split("(?<!([^!]\\!))&");
         for(String argument : arguments) {
             //Split variable names from their value
