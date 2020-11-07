@@ -320,7 +320,8 @@ final public class ConnectionHandler implements Runnable {
                 buildHeaderLine(Types.HeaderField.ContentLength, payload) + 
                 buildHeaderLine(Types.HeaderField.ContentType, payload) +
                 buildHeaderLine(Types.HeaderField.Allow, payload) + 
-                buildHeaderLine(Types.HeaderField.Expires, payload);
+                buildHeaderLine(Types.HeaderField.Expires, payload) + 
+                "\r\n";
     }
 
     /*
