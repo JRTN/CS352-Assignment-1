@@ -37,7 +37,7 @@ final public class ConnectionHandler implements Runnable {
              * then throw an exception
              */
         } catch (IOException e) {
-            System.out.printf("ERROR: Failed to create IO streams for socket %s.%n%s", SOCKET.toString(), e.toString());
+            Logger.error("Failed to create IO streams for socket", e.getMessage());
             close();
             throw new InstantiationException("Failed to create IO streams.");
         }
@@ -55,9 +55,9 @@ final public class ConnectionHandler implements Runnable {
         String message;
         try {
             message = receive(REQUEST_TIMEOUT_MS);
-            System.out.println("Received message:\n" + message);
+            Logger.info("Received message", message);
         } catch (IOException e) {
-            System.out.printf("ERROR: Failed to read input from socket. %s%n", e.getMessage());
+            Logger.error("Failed to read input from socket", e.getMessage());
             send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
             close();
             return;
@@ -112,7 +112,7 @@ final public class ConnectionHandler implements Runnable {
      * output. Compiles the message and sends it via the output methods.
      */
     private void sendResponse(String[] lines) {
-        System.out.printf("Sending Response for lines: %s\n", Arrays.toString(lines));
+        Logger.info("Sending response for lines", Arrays.toString(lines));
         if (lines.length < 1) {
             send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
         }
@@ -141,7 +141,6 @@ final public class ConnectionHandler implements Runnable {
             return;
         }
 
-        System.out.printf("INFO: Building message for command %s and resource %s.%n", command, resource);
         switch (command.trim()) {
             // UNIMPLEMENTED COMMANDS
             case "PUT":
@@ -152,8 +151,6 @@ final public class ConnectionHandler implements Runnable {
                 return;
             // IMPLEMENTED COMMANDS
             case "POST":
-                // TODO: Implement POST
-
                 String from = null;
                 String userAgent = null;
                 String contentType = null;
@@ -180,15 +177,7 @@ final public class ConnectionHandler implements Runnable {
                         argumentString = new ArgumentDecoder(line).getDecoded();
                     }
                 }
-
-                System.out.println("Extracted information for post request: ");
-                System.out.println("\tFrom: " + from);
-                System.out.println("\tUser Agent: " + userAgent);
-                System.out.println("\tContent Type: " + contentType);
-                System.out.println("\tContent Length: " + contentLength);
-                System.out.println("\tArguments: " + argumentString);
                 
-
                 // If the lines don't include content length
                 if (contentLength < 0) {
                     send(buildStatusLine(Types.StatusCode.LENGTH_REQUIRED));
@@ -223,7 +212,7 @@ final public class ConnectionHandler implements Runnable {
                     process = builder.start();
 
                 } catch (IOException e1) {
-                    System.out.printf("INFO: Failed to run process and capture output: %s\n", e1.getMessage());
+                    Logger.error("Failed to run process and capture output", e1.getMessage());
                     send(buildStatusLine(Types.StatusCode.FORBIDDEN));
                     return;
                 }
@@ -234,7 +223,7 @@ final public class ConnectionHandler implements Runnable {
                     process.getOutputStream().write((argumentString).getBytes());
                     process.getOutputStream().close();
                 } catch (IOException e2) {
-                    System.out.printf("INFO: Failed to write output to process %s: %s\n", resource, e2.getMessage());
+                    Logger.error("Failed to write output to process", e2.getMessage());
                     send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
                     return;
                 }
@@ -246,9 +235,9 @@ final public class ConnectionHandler implements Runnable {
                         output.append(line).append("\n");
                     }
                     process_output.close();
-                    System.out.printf("INFO: Read input from process %s: %s\n", resource, output.toString());
+                    Logger.info("Read input from process" + resource, output.toString());
                 } catch (IOException e1) {
-                    System.out.printf("INFO: Failed to read input from process: %s\n", e1.getMessage());
+                    Logger.error("Failed to read input from process " + resource, e1.getMessage());
                     send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
                     return;
                 }
@@ -324,8 +313,8 @@ final public class ConnectionHandler implements Runnable {
         return buildStatusLine(Types.StatusCode.OK) + 
                 buildHeaderLine(Types.HeaderField.ContentLength, payload) + 
                 buildHeaderLine(Types.HeaderField.ContentType, payload) +
-                buildHeaderLine(Types.HeaderField.Allow, payload) + 
-                buildHeaderLine(Types.HeaderField.Expires, payload) + 
+                buildHeaderLine(Types.HeaderField.Allow) + 
+                buildHeaderLine(Types.HeaderField.Expires) + 
                 "\r\n";
     }
 
@@ -340,16 +329,12 @@ final public class ConnectionHandler implements Runnable {
             Date conditionalDate = parseDate(conditionalDateString);
             Date lastModified = new Date(file.lastModified());
             
-            System.out.println("Comparing dates:");
-            System.out.printf("\t[%s] to [%s]", dateFormatter.format(lastModified), dateFormatter.format(conditionalDate));
             //We send NOT_MODIFIED if the file was last modified before the conditional date
             if (lastModified.getTime() < conditionalDate.getTime()) {
-                System.out.println("Sending 304 Not Modified.");
                 return buildStatusLine(Types.StatusCode.NOT_MODIFIED) +
-                        buildHeaderLine(Types.HeaderField.Expires, file);
+                        buildHeaderLine(Types.HeaderField.Expires);
             }
         }
-        System.out.println("Sending 200 OK");
         //Call builder methods with the appropriate fields and OK status as all other checks
         //have passed and this is a valid request
         return buildStatusLine(Types.StatusCode.OK) +
@@ -357,24 +342,16 @@ final public class ConnectionHandler implements Runnable {
                 buildHeaderLine(Types.HeaderField.ContentLength, file) +
                 buildHeaderLine(Types.HeaderField.LastModified, file) +
                 buildHeaderLine(Types.HeaderField.ContentEncoding, file) +
-                buildHeaderLine(Types.HeaderField.Allow, file) +
-                buildHeaderLine(Types.HeaderField.Expires, file) +
+                buildHeaderLine(Types.HeaderField.Allow) +
+                buildHeaderLine(Types.HeaderField.Expires) +
                 "\r\n";
     }
 
-    public String buildHeaderLine(Types.HeaderField field, String payload) {
+    //These header lines require nothing but the headerfield itself. Everything else is calculated.
+    public String buildHeaderLine(Types.HeaderField field) {
         String headerLine = field.toString() + ": %s\r\n";
         String value;
         switch (field) {
-            case ContentType:
-                value = "text/html";
-                break;
-
-            case ContentLength:
-                int contentLength = payload.length();
-                value = "" + contentLength;
-                break;
-
             case Allow:
                 //Return the allowed HTTP request types
                 value = "GET, HEAD, POST";
@@ -387,6 +364,28 @@ final public class ConnectionHandler implements Runnable {
                 c.add(Calendar.YEAR, 1);
                 Date expires = c.getTime();
                 value = formatDate(expires);
+                break;
+
+            default:
+                return "";
+        }
+        return String.format(headerLine, value);
+    }
+
+    /*
+        Builds headerlines for a specific payload. This is to be used primarily for post headers
+    */
+    public String buildHeaderLine(Types.HeaderField field, String payload) {
+        String headerLine = field.toString() + ": %s\r\n";
+        String value;
+        switch (field) {
+            case ContentType:
+                value = "text/html";
+                break;
+
+            case ContentLength:
+                int contentLength = payload.length();
+                value = "" + contentLength;
                 break;
 
             default:
@@ -437,20 +436,6 @@ final public class ConnectionHandler implements Runnable {
                 value = "identity";
                 break;
 
-            case Allow:
-                //Return the allowed HTTP request types
-                value = "GET, HEAD, POST";
-                break;
-
-            case Expires:
-                //Currently we set packets to expire in 1 year
-                Calendar c = Calendar.getInstance();
-                c.setTime(new Date());
-                c.add(Calendar.YEAR, 1);
-                Date expires = c.getTime();
-                value = formatDate(expires);
-                break;
-
             default:
                 return "";
         }
@@ -478,7 +463,7 @@ final public class ConnectionHandler implements Runnable {
         bytes of the string
      */
     private void send(String str) {
-        System.out.printf("INFO: Sending String to socket %n\"%s\"%n", str.replace("\r\n", "[CRLF]\r\n"));
+        Logger.info("Sending string to socket", str.replace("\r\n", "[CRLF]\r\n"));
         send(str.getBytes());
     }
 
@@ -495,7 +480,7 @@ final public class ConnectionHandler implements Runnable {
             because something is wrong with output so we don't send INTERNAL_SERVER_ERROR
          */
         } catch (IOException e) {
-            System.out.printf("ERROR: Failed to write to write to output stream: %s%n", e.getMessage());
+            Logger.error("Failed to write to output stream", e.getMessage());
         }
     }
 
@@ -530,7 +515,6 @@ final public class ConnectionHandler implements Runnable {
         try {
             // "Once your response has been sent, you should flush() your output streams, wait a quarter second,
             // close down all communication objects and cleanly exit the communication Thread"
-            System.out.printf("INFO: Closing socket, input, and output.%n");
             if (OUT != null) OUT.flush();
 
             Thread.sleep(250);
@@ -543,7 +527,7 @@ final public class ConnectionHandler implements Runnable {
                 Resolution: Warn user and move on.
             */
         } catch (Exception e) {
-            System.out.printf("ERROR: Failed to clean up connections for socket.%n%s", e.getMessage());
+            Logger.error("Failed to clean up connections for socket", e.getMessage());
         }
     }
 

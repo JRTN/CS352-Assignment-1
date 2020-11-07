@@ -36,7 +36,7 @@ final public class PartialHTTP1Server {
             Resolution: Inform user and end.
         */
         } catch (final Exception e) {
-            System.out.printf("ERROR: Failed to create server socket on port %d.%n%s%n", PORT_NUMBER, e.getMessage());
+            Logger.error("Failed to create server socket", e.getMessage());
             return;
         }
 
@@ -62,7 +62,7 @@ final public class PartialHTTP1Server {
                 Resolution: Inform the user and move on.
             */
             } catch (final Exception e) {
-                System.out.printf("ERROR: Failed to accept connection on socket.%n%s", e.getMessage());
+                Logger.error("Failed to accept connection on socket", e.getMessage());
                 continue;
             }
 
@@ -78,7 +78,7 @@ final public class PartialHTTP1Server {
                     //Write error 503 to the socket's output stream
                     BufferedWriter OUT = new BufferedWriter(new OutputStreamWriter(SOCKET.getOutputStream()));
                     String response = String.format("HTTP/1.0 %s\r\n", Types.StatusCode.SERVICE_UNAVAILABLE);
-                    System.out.printf("INFO: Sending response %n\"%s\"%n", response.replace("\r\n", "[CRLF]\r\n"));
+                    Logger.info("Sending response:", response.replace("\r\n", "[CRLF]\r\n"));
                     OUT.write(response);
                     //Clean up connections
                     OUT.flush();
@@ -90,16 +90,16 @@ final public class PartialHTTP1Server {
                         Resolution: Inform user and move on
                     */
                 } catch (final IOException ex) {
-                    System.out.printf("ERROR: Failed to write 503 response from main.%n%s", ex.getMessage());
+                    Logger.error("Failed to write 503 response from main", ex.getMessage());
                 } catch (final Exception ex) {
-                    System.out.printf("ERROR: Unspecified exception.%n%s", ex.getMessage());
+                    Logger.error("Unspecified exception", ex.getMessage());
                 }
             /*
                 Error: Failed to create Client Handler for a connection
                 Resolution: Inform the user and move on
             */
             } catch (final InstantiationException e) {
-                System.out.printf("ERROR: Failed to create thread for socket.%n%s", e.getMessage());
+                Logger.error("Failed to create thread for socket", e.getMessage());
             }
         }
     }
