@@ -40,8 +40,7 @@ public class ArgumentDecoder {
         return argumentsMap.get(variableName);
     }
 
-    @Override
-    public String toString() {
+    public String getDecoded() {
         Iterator<String> iter = argumentsMap.keySet().iterator();
 
         StringBuilder builder = new StringBuilder();

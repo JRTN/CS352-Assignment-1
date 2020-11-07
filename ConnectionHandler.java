@@ -178,7 +178,7 @@ final public class ConnectionHandler implements Runnable {
                     } else if (line.startsWith("Content-Type: ")) {
                         contentType = line.substring("Content-Type: ".length());
                     } else if (!line.isEmpty()) { // Payload line
-                        argumentString = new ArgumentDecoder(line).toString();
+                        argumentString = new ArgumentDecoder(line).getDecoded();
                     }
                 }
 
@@ -231,7 +231,8 @@ final public class ConnectionHandler implements Runnable {
                 BufferedReader process_output = new BufferedReader(new InputStreamReader(process.getInputStream()));
 
                 try {
-                    process.getOutputStream().write(argumentString.getBytes());
+                    process.getOutputStream().write((argumentString).getBytes());
+                    process.getOutputStream().close();
                 } catch (IOException e2) {
                     System.out.printf("INFO: Failed to write output to process %s: %s\n", resource, e2.getMessage());
                 }
