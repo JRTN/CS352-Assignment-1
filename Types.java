@@ -114,6 +114,22 @@ final public class Types {
             fieldName = name;
         }
 
+        public String parseValue(String headerLine) {
+            String value = null;
+            if(headerLine.startsWith(fieldName)) {
+                try {
+                    value = headerLine.substring(fieldName.length() + 2);
+                } catch(IndexOutOfBoundsException e) {
+                    return null;
+                }
+            }
+            return value;
+        }
+
+        public Boolean isHeaderLine(String headerLine) {
+            return headerLine.startsWith(fieldName);
+        }
+
         @Override
         public String toString() {
             return fieldName;

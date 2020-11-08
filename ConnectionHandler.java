@@ -160,19 +160,19 @@ final public class ConnectionHandler implements Runnable {
                 // Extract information from lines
                 for (String line : lines) {
                     line = line.trim(); // Get rid of the trailing \r\n
-                    if (line.startsWith("From: ")) {
-                        from = line.substring("From :".length());
-                    } else if (line.startsWith("User-Agent: ")) {
-                        userAgent = line.substring("User-Agent: ".length());
-                    } else if (line.startsWith("Content-Length: ")) {
-                        String value = line.substring("Content-Length: ".length());
+                    if (Types.HeaderField.From.isHeaderLine(line)) {
+                        from = Types.HeaderField.From.parseValue(line);
+                    } else if (Types.HeaderField.UserAgent.isHeaderLine(line)) {
+                        userAgent = Types.HeaderField.UserAgent.parseValue(line);
+                    } else if (Types.HeaderField.ContentLength.isHeaderLine(line)) {
+                        String value = Types.HeaderField.ContentLength.parseValue(line);
                         try {
                             contentLength = Integer.parseInt(value);
                         } catch (NumberFormatException e) {
                             send(buildStatusLine(Types.StatusCode.LENGTH_REQUIRED));
                         }
-                    } else if (line.startsWith("Content-Type: ")) {
-                        contentType = line.substring("Content-Type: ".length());
+                    } else if (Types.HeaderField.ContentType.isHeaderLine(line)) {
+                        contentType = Types.HeaderField.ContentType.parseValue(line);
                     } else if (!line.isEmpty()) { // Payload line
                         argumentString = new ArgumentDecoder(line).getDecoded();
                     }
@@ -191,6 +191,7 @@ final public class ConnectionHandler implements Runnable {
                 // If the requested resource is not a cgi script
                 if (!resource.endsWith(".cgi")) {
                     send(buildStatusLine(Types.StatusCode.METHOD_NOT_ALLOWED));
+                    return;
                 }
 
                 ProcessBuilder builder = new ProcessBuilder("." + resource);
