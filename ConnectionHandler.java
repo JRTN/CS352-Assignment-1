@@ -194,6 +194,7 @@ final public class ConnectionHandler implements Runnable {
                     return;
                 }
 
+                //Start process from the resource which we convert to a relative path
                 ProcessBuilder builder = new ProcessBuilder("." + resource);
                 Map<String, String> environment = builder.environment();
                 //Set environment variables as necessary
@@ -201,6 +202,7 @@ final public class ConnectionHandler implements Runnable {
                 environment.put("SCRIPT_NAME", resource);
                 environment.put("SERVER_NAME", SOCKET.getLocalAddress().getHostAddress());
                 environment.put("PORT", "" + SOCKET.getPort());
+                //Only set these environment variables if they are provided
                 if (from != null) {
                     environment.put("HTTP_FROM", from);
                 }
