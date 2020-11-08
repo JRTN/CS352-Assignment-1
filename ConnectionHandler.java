@@ -174,7 +174,7 @@ final public class ConnectionHandler implements Runnable {
                     } else if (Types.HeaderField.ContentType.isHeaderLine(line)) {
                         contentType = Types.HeaderField.ContentType.parseValue(line);
                     } else if (!line.isEmpty()) { // Payload line
-                        argumentString = new ArgumentDecoder(line).getDecoded();
+                        argumentString = line.replaceAll("(\\!)([\\!\\*'\\(\\);:@&\\+,/\\?#\\[\\]\\s])", "$2");
                     }
                 }
                 
