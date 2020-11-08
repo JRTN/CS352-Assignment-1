@@ -112,7 +112,6 @@ final public class ConnectionHandler implements Runnable {
      * output. Compiles the message and sends it via the output methods.
      */
     private void sendResponse(String[] lines) {
-        Logger.info("Sending response for lines", Arrays.toString(lines));
         if (lines.length < 1) {
             send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
         }
@@ -173,8 +172,9 @@ final public class ConnectionHandler implements Runnable {
                         }
                     } else if (Types.HeaderField.ContentType.isHeaderLine(line)) {
                         contentType = Types.HeaderField.ContentType.parseValue(line);
-                    } else if (!line.isBlank()) { // Payload line
+                    } else if (!line.isBlank() && !line.equals(lines[0])) { // Payload line
                         argumentString = line.replaceAll("(\\!)([\\!\\*'\\(\\);:@&\\+,/\\?#\\[\\]\\s])", "$2");
+                        Logger.info("Decoded string", String.format("%s to %s", line, argumentString));
                     }
                 }
                 
@@ -212,10 +212,11 @@ final public class ConnectionHandler implements Runnable {
 
                 Process process;
                 try {
+                    Logger.info("Starting process", resource);
                     process = builder.start();
 
                 } catch (IOException e1) {
-                    Logger.error("Failed to run process and capture output", e1.getMessage());
+                    Logger.error("Failed to run process", e1.getMessage());
                     send(buildStatusLine(Types.StatusCode.FORBIDDEN));
                     return;
                 }
@@ -223,10 +224,13 @@ final public class ConnectionHandler implements Runnable {
                 BufferedReader process_output = new BufferedReader(new InputStreamReader(process.getInputStream()));
 
                 try {
-                    process.getOutputStream().write((argumentString).getBytes());
-                    process.getOutputStream().close();
+                    if(argumentString != null) {
+                        Logger.info("Sending input to process", argumentString);
+                        process.getOutputStream().write((argumentString).getBytes());
+                        process.getOutputStream().close();
+                    }
                 } catch (IOException e2) {
-                    Logger.error("Failed to write output to process", e2.getMessage());
+                    Logger.error("Failed to write input to process", e2.getMessage());
                     send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
                     return;
                 }
@@ -238,9 +242,9 @@ final public class ConnectionHandler implements Runnable {
                         output.append(line).append("\n");
                     }
                     process_output.close();
-                    Logger.info("Read input from process" + resource, output.toString());
+                    Logger.info("Read output from process" + resource, output.toString());
                 } catch (IOException e1) {
-                    Logger.error("Failed to read input from process " + resource, e1.getMessage());
+                    Logger.error("Failed to read output from process " + resource, e1.getMessage());
                     send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
                     return;
                 }
