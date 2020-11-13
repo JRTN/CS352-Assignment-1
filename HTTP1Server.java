@@ -3,7 +3,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.*;
 
-final public class PartialHTTP1Server {
+final public class HTTP1Server {
 
     public static void main(final String[] args) {
         /*
