@@ -6,7 +6,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Map;
@@ -178,14 +177,14 @@ final public class ConnectionHandler implements Runnable {
                     }
                 }
                 
-                // If the lines don't include content length
-                if (contentLength < 0) {
-                    send(buildStatusLine(Types.StatusCode.LENGTH_REQUIRED));
-                    return;
-                }
                 // If the lines don't include content type
                 if (contentType == null) {
                     send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
+                    return;
+                }
+                // If the lines don't include content length
+                if (contentLength < 0) {
+                    send(buildStatusLine(Types.StatusCode.LENGTH_REQUIRED));
                     return;
                 }
                 // If the requested resource is not a cgi script
