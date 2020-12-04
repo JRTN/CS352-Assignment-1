@@ -154,6 +154,8 @@ final public class ConnectionHandler implements Runnable {
                 String contentType = null;
                 int contentLength = -1;
                 String argumentString = null;
+                int cookieID = -1;
+                Cookie cookie = null;
 
                 // Extract information from lines
                 for (String line : lines) {
@@ -168,9 +170,30 @@ final public class ConnectionHandler implements Runnable {
                             contentLength = Integer.parseInt(value);
                         } catch (NumberFormatException e) {
                             send(buildStatusLine(Types.StatusCode.LENGTH_REQUIRED));
+                            return;
                         }
                     } else if (Types.HeaderField.ContentType.isHeaderLine(line)) {
                         contentType = Types.HeaderField.ContentType.parseValue(line);
+                    } else if (Types.HeaderField.Cookie.isHeaderLine(line)) {
+                        String cookieString = Types.HeaderField.Cookie.parseValue(line);
+                        if(!cookieString.startsWith("session=")) {
+                            send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
+                            return;
+                        }
+                        String sessionIDString = cookieString.substring("session=".length());
+                        try {
+                            cookieID = Integer.parseInt(sessionIDString);
+                        } catch (NumberFormatException e) {
+                            send(buildStatusLine(Types.StatusCode.BAD_REQUEST));
+                            return;
+                        }
+                        Logger.info("Getting cookie from ID", "Cookie ID: " + cookieID);
+                        cookie = Cookie.getCookieBySessionID(cookieID);
+                        if(cookie != null) {
+                            Logger.info("Got Cookie", String.format("Session ID: %d\nExpires: ",
+                                                                        cookie.getSessionID(),
+                                                                        dateFormatter.format(cookie.getExpiresDate())));
+                        }
                     } else if (!line.isBlank() && !line.equals(lines[0])) { // Payload line
                         argumentString = line.replaceAll("(\\!)([\\!\\*'\\(\\);:@&\\+,/\\?#\\[\\]\\s])", "$2");
                         Logger.info("Decoded string", String.format("%s to %s", line, argumentString));
@@ -249,7 +272,7 @@ final public class ConnectionHandler implements Runnable {
                 }
                 
                 //Send header and payload
-                send(buildPostHeader(output.toString()));
+                send(buildPostHeader(output.toString(), cookie));
                 send(output.toString());
 
                 return;
@@ -310,7 +333,7 @@ final public class ConnectionHandler implements Runnable {
         return String.format("%s %d %s\r\n", HTTP_SUPPORTED_VERSION, statusCode.getCode(), statusCode.getMessage());
     }
 
-    private String buildPostHeader(String payload) {
+    private String buildPostHeader(String payload, Cookie cookie) {
 
         if(payload.isEmpty() || payload.isBlank()) {
             return buildStatusLine(Types.StatusCode.NO_CONTENT);
@@ -321,6 +344,7 @@ final public class ConnectionHandler implements Runnable {
                 buildHeaderLine(Types.HeaderField.ContentType, payload) +
                 buildHeaderLine(Types.HeaderField.Allow) + 
                 buildHeaderLine(Types.HeaderField.Expires) + 
+                buildCookieLine(cookie) +
                 "\r\n";
     }
 
@@ -351,6 +375,15 @@ final public class ConnectionHandler implements Runnable {
                 buildHeaderLine(Types.HeaderField.Allow) +
                 buildHeaderLine(Types.HeaderField.Expires) +
                 "\r\n";
+    }
+
+    public String buildCookieLine(Cookie cookie) {
+        if(cookie == null) {
+            return "";
+        }
+
+        return String.format("Set-Cookie: session=%d; Expires=%s;\r\n", cookie.getSessionID(), 
+                                                                    dateFormatter.format(cookie.getExpiresDate()));
     }
 
     //These header lines require nothing but the headerfield itself. Everything else is calculated.

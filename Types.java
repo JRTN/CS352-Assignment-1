@@ -106,7 +106,8 @@ final public class Types {
         Allow("Allow"),
         Expires("Expires"),
         From("From"),
-        UserAgent("User-Agent");
+        UserAgent("User-Agent"),
+        Cookie("Cookie");
 
         public String fieldName;
 

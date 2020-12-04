@@ -20,9 +20,13 @@ public class Cookie {
         cal.add(Calendar.SECOND, 30);
         expires = cal.getTime();
 
-        sessionID = Objects.hash(sessionID);
+        sessionID = calculateCheckSum(pw);
 
         cookieMap.put(sessionID, this);
+    }
+
+    private int calculateCheckSum(String pw) {
+        return Objects.hash(pw);
     }
 
     public int getSessionID() {
@@ -39,5 +43,10 @@ public class Cookie {
 
     public static Cookie getCookieBySessionID(int id) {
         return cookieMap.get(id);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("SessionID: %d Expires: %s", sessionID, expires.toString());
     }
 }
