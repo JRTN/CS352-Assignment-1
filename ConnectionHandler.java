@@ -239,7 +239,7 @@ final public class ConnectionHandler implements Runnable {
                     environment.put("HTTP_USER_AGENT", userAgent);
                 }
                 if(cookie != null && !cookie.isExpired()) {
-                    environment.put("HTTP_COOKIE", "" + cookieID);
+                    environment.put("HTTP_COOKIE", "" + cookie.getSessionID());
                 }
 
                 Process process;
