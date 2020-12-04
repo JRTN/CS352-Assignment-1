@@ -26,7 +26,11 @@ public class Cookie {
     }
 
     private int calculateCheckSum(String pw) {
-        return Objects.hash(pw);
+        int checksum = 0;
+        for(char c : pw.toCharArray()) {
+            checksum += (int) c;
+        }
+        return checksum;
     }
 
     public int getSessionID() {

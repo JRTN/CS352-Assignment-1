@@ -159,7 +159,7 @@ final public class ConnectionHandler implements Runnable {
 
                 // Extract information from lines
                 for (String line : lines) {
-                    line = line.trim(); // Get rid of the trailing \r\n
+                    line = line.replaceAll("\r\n", ""); // Get rid of the trailing \r\n
                     if (Types.HeaderField.From.isHeaderLine(line)) {
                         from = Types.HeaderField.From.parseValue(line);
                     } else if (Types.HeaderField.UserAgent.isHeaderLine(line)) {
@@ -216,6 +216,13 @@ final public class ConnectionHandler implements Runnable {
                     return;
                 }
 
+                if(resource.equals("/cgi_bin/login.cgi")) {
+                    String password = argumentString.substring(argumentString.indexOf("password=") + 9);
+                    cookie = new Cookie(password);
+                    Logger.info("Created new Cookie from password", 
+                                String.format("Password: %s\nCookie: %s", password, cookie.toString()));
+                }
+
                 //Start process from the resource which we convert to a relative path
                 ProcessBuilder builder = new ProcessBuilder("." + resource);
                 Map<String, String> environment = builder.environment();
@@ -230,6 +237,9 @@ final public class ConnectionHandler implements Runnable {
                 }
                 if (userAgent != null) {
                     environment.put("HTTP_USER_AGENT", userAgent);
+                }
+                if(cookie != null && !cookie.isExpired()) {
+                    environment.put("HTTP_COOKIE", "" + cookieID);
                 }
 
                 Process process;
