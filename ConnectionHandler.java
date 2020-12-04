@@ -178,7 +178,7 @@ final public class ConnectionHandler implements Runnable {
                 }
                 
                 // If the lines don't include content type
-                if (contentType == null) {
+                if (contentType == null || !contentType.equals("application/x-www-form-urlencoded")) {
                     send(buildStatusLine(Types.StatusCode.INTERNAL_SERVER_ERROR));
                     return;
                 }
